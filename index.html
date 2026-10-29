@@ -1,0 +1,2165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#f6f8fd" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<title>Zonse Homes</title>
+<style>
+  :root {
+    --bg: #f0f1f3;
+    --surface: #ffffff;
+    --surface-2: #f5f6f8;
+    --text: #111827;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --accent: #1f2937;
+    --accent-text: #ffffff;
+    --brand: #0f766e;
+    --danger: #e11d48;
+    --shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+    --placeholder: #d1d5db;
+    --ad-bg: #fffbeb;
+    --ad-border: #fcd34d;
+    color-scheme: light;
+  }
+  body.dark {
+    --bg: #0b0f14;
+    --surface: #121821;
+    --surface-2: #19212c;
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+    --border: #243041;
+    --accent: #e5e7eb;
+    --accent-text: #0b0f14;
+    --brand: #2dd4bf;
+    --danger: #fb7185;
+    --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    --placeholder: #1f2a38;
+    --ad-bg: #1f1a10;
+    --ad-border: #5c4a1b;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100%; }
+  body {
+    font-family: "Segoe UI", system-ui, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    transition: background 0.4s, color 0.4s;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  a { color: inherit; }
+
+  .app {
+    display: flex;
+    min-height: calc(100vh - 28px);
+    margin: 14px;
+    background: var(--surface);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
+    transition: background 0.4s;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    width: 230px;
+    flex-shrink: 0;
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+  }
+  .logo { font-size: 20px; font-weight: 700; padding: 0 8px 24px; letter-spacing: -0.3px; }
+  .nav { display: flex; flex-direction: column; gap: 4px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 14px; border-radius: 10px;
+    text-decoration: none; font-size: 14px;
+    opacity: 0.85;
+    transition: background 0.2s, transform 0.2s, opacity 0.2s;
+  }
+  .nav a:hover { background: var(--surface-2); transform: translateX(3px); opacity: 1; }
+  .nav a.active { background: var(--accent); color: var(--accent-text); opacity: 1; }
+  .sidebar-bottom { margin-top: auto; }
+  .account-box { background: var(--surface-2); border-radius: 14px; padding: 14px; font-size: 13px; }
+  .account-box strong { display: block; font-size: 14px; margin-bottom: 2px; }
+  .account-box span { display: block; font-size: 12px; color: var(--muted); }
+
+  /* ---------- Main and top bar ---------- */
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .topbar {
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 16px; flex-wrap: wrap;
+  }
+  .topbar h1 { font-size: 20px; }
+  .topbar p { font-size: 13px; color: var(--muted); margin-top: 3px; }
+  .top-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .search {
+    padding: 10px 16px; width: 280px;
+    border: 1px solid var(--border); border-radius: 22px;
+    background: var(--surface-2); outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s, width 0.3s;
+  }
+  .search:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 20%, transparent);
+    width: 320px;
+  }
+  .icon-btn {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--surface-2);
+    cursor: pointer; font-size: 16px;
+    transition: transform 0.3s;
+  }
+  .icon-btn:hover { transform: rotate(20deg); }
+  .content { padding: 24px 28px 48px; flex: 1; }
+
+  /* Page entrance animation (plays only on page change) */
+  #page.enter { animation: pageIn 0.45s cubic-bezier(0.2, 0.7, 0.2, 1); }
+  @keyframes pageIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: none; }
+  }
+  #page.enter .listing, #page.enter .ad { animation: rise 0.5s both; }
+
+  /* ---------- Buttons and chips ---------- */
+  .btn {
+    background: var(--accent); color: var(--accent-text);
+    border: none; padding: 10px 18px; border-radius: 10px;
+    cursor: pointer; font-size: 14px; text-decoration: none;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    transition: transform 0.15s, opacity 0.2s, box-shadow 0.2s;
+  }
+  .btn:hover { opacity: 0.92; box-shadow: var(--shadow); }
+  .btn:active { transform: scale(0.96); }
+  .btn-light { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-brand { background: var(--brand); color: #fff; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-small { padding: 7px 12px; font-size: 13px; border-radius: 8px; }
+  .btn-full { width: 100%; }
+  .chip {
+    padding: 8px 15px; border-radius: 20px;
+    border: 1px solid var(--border); background: var(--surface);
+    cursor: pointer; font-size: 13px;
+    transition: all 0.25s;
+  }
+  .chip:hover { border-color: var(--brand); transform: translateY(-1px); }
+  .chip.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+  .inline { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+
+  /* ---------- Forms ---------- */
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .field label { font-size: 13px; color: var(--muted); }
+  .input, .select, .textarea {
+    padding: 10px 12px; width: 100%;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--surface-2); outline: none; font-size: 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .select { width: auto; }
+  .input:focus, .select:focus, .textarea:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 18%, transparent);
+  }
+  .textarea { resize: vertical; min-height: 110px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  /* ---------- Cards and listings ---------- */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 20px;
+  }
+  .muted { color: var(--muted); font-size: 13px; }
+  .sec-title { font-size: 16px; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 18px; }
+  .listing {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; overflow: hidden; cursor: pointer; position: relative;
+    transition: transform 0.35s, box-shadow 0.35s;
+  }
+  .listing:hover { transform: translateY(-5px); box-shadow: var(--shadow); }
+  .cover {
+    height: 170px; background: var(--placeholder);
+    position: relative; overflow: hidden;
+  }
+  .cover img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.6s; }
+  .listing:hover .cover img { transform: scale(1.06); }
+  .emoji {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font-size: 46px;
+  }
+  .shimmer::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+    animation: shine 2.2s infinite;
+  }
+  @keyframes shine { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+  .tag {
+    position: absolute; top: 12px; left: 12px;
+    background: rgba(15, 23, 42, 0.78); color: #fff;
+    font-size: 11px; padding: 4px 10px; border-radius: 20px;
+  }
+  .tag.promo-tag { background: var(--brand); }
+  .listing-body { padding: 14px 16px 16px; }
+  .listing-body h3 { font-size: 16px; margin: 4px 0 6px; }
+  .listing-body .muted { font-size: 12px; }
+  .price { font-weight: 700; margin-top: 8px; font-size: 15px; }
+  .fav {
+    position: absolute; top: 10px; right: 10px;
+    width: 36px; height: 36px; border-radius: 50%; border: none;
+    background: rgba(255, 255, 255, 0.92); color: #888;
+    cursor: pointer; font-size: 17px;
+    transition: transform 0.2s;
+  }
+  .fav:hover { transform: scale(1.12); }
+  .fav.on { color: var(--danger); }
+  .fav.pop { animation: pop 0.45s; }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.35); }
+    100% { transform: scale(1); }
+  }
+
+  /* Friendly ad card */
+  .ad {
+    border: 1px dashed var(--ad-border); background: var(--ad-bg);
+    border-radius: 16px; padding: 20px;
+    display: flex; flex-direction: column; justify-content: center;
+    position: relative;
+  }
+  .ad .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .ad h4 { margin: 8px 0 6px; font-size: 15px; }
+  .ad p { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+  .ad .x {
+    position: absolute; top: 8px; right: 10px;
+    background: none; border: none; cursor: pointer;
+    color: var(--muted); font-size: 14px;
+  }
+
+  /* Hero and map */
+  .hero {
+    border-radius: 20px; padding: 34px; color: #fff; margin-bottom: 22px;
+    background: linear-gradient(120deg, #0f766e, #1e3a8a, #7c3aed);
+    background-size: 200% 200%;
+    animation: gradientMove 9s ease infinite;
+  }
+  @keyframes gradientMove {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  .hero h2 { font-size: 26px; margin-bottom: 8px; }
+  .hero p { opacity: 0.92; font-size: 14px; max-width: 540px; }
+  .hero .btn-light { background: #fff; color: #111; }
+  .map { width: 100%; height: 260px; border: 0; border-radius: 14px; display: block; background: var(--surface-2); }
+  .map-card .map { height: 230px; }
+
+  /* Listing detail */
+  .detail { display: grid; grid-template-columns: 1.4fr 1fr; gap: 26px; }
+  @media (max-width: 900px) { .detail { grid-template-columns: 1fr; } }
+  .gallery {
+    height: 340px; border-radius: 18px; overflow: hidden;
+    background: var(--placeholder); position: relative; margin-bottom: 18px;
+  }
+  .gallery img { width: 100%; height: 100%; object-fit: cover; }
+  .gallery .emoji { font-size: 90px; }
+  .stats { display: flex; gap: 24px; flex-wrap: wrap; margin: 16px 0; }
+  .stats div { font-size: 13px; color: var(--muted); }
+  .stats strong { display: block; color: var(--text); font-size: 15px; margin-top: 3px; }
+  .big-price { font-size: 26px; font-weight: 700; margin: 6px 0 10px; }
+  .pill {
+    padding: 4px 10px; border-radius: 12px; font-size: 12px;
+    display: inline-block; background: var(--surface-2);
+  }
+  .pill-ok { background: #dcfce7; color: #166534; }
+  .pill-wait { background: #fef3c7; color: #92400e; }
+  body.dark .pill-ok { background: #14532d; color: #bbf7d0; }
+  body.dark .pill-wait { background: #78350f; color: #fde68a; }
+  .thumb-sm {
+    width: 64px; height: 64px; border-radius: 12px; flex-shrink: 0;
+    background: var(--placeholder); display: grid; place-items: center;
+    font-size: 28px; overflow: hidden;
+  }
+  .thumb-sm img { width: 100%; height: 100%; object-fit: cover; }
+  .avatar {
+    width: 58px; height: 58px; border-radius: 50%;
+    background: var(--brand); color: #fff;
+    display: grid; place-items: center; font-size: 20px; font-weight: 700;
+  }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+  /* Chat */
+  .chat {
+    display: grid; grid-template-columns: 300px 1fr;
+    height: calc(100vh - 220px); min-height: 480px;
+    border: 1px solid var(--border); border-radius: 16px;
+    overflow: hidden; background: var(--surface);
+  }
+  @media (max-width: 800px) { .chat { grid-template-columns: 1fr; } }
+  .convos { border-right: 1px solid var(--border); overflow-y: auto; }
+  .convo { padding: 14px 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s; }
+  .convo:hover, .convo.active { background: var(--surface-2); }
+  .convo strong { font-size: 14px; display: block; }
+  .convo span { font-size: 12px; color: var(--muted); display: block; }
+  .thread { display: flex; flex-direction: column; min-width: 0; }
+  .msgs { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .bubble {
+    max-width: 70%; padding: 10px 14px; border-radius: 16px;
+    font-size: 14px; line-height: 1.45; word-wrap: break-word;
+  }
+  .bubble.me { align-self: flex-end; background: var(--accent); color: var(--accent-text); border-bottom-right-radius: 4px; }
+  .bubble.them { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 4px; }
+  .compose { display: flex; gap: 10px; padding: 14px; border-top: 1px solid var(--border); }
+  .compose .input { border-radius: 22px; }
+
+  /* Tables and FAQ */
+  th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--border); }
+  .faq-item { border-bottom: 1px solid var(--border); }
+  .faq-q {
+    width: 100%; background: none; border: none; text-align: left;
+    padding: 18px 4px; cursor: pointer; font-size: 15px;
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  }
+  .faq-q .plus { font-size: 22px; color: var(--brand); transition: transform 0.35s; }
+  .faq-item.open .plus { transform: rotate(45deg); }
+  .faq-a { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.35s ease; }
+  .faq-item.open .faq-a { grid-template-rows: 1fr; }
+  .faq-a > div { overflow: hidden; }
+  .faq-a p { padding: 0 4px 18px; color: var(--muted); font-size: 14px; line-height: 1.65; }
+
+  /* Support contact cards */
+  .contact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 22px; }
+  .contact-card { text-decoration: none; transition: transform 0.3s, box-shadow 0.3s; display: block; }
+  .contact-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+  .contact-card .ico { font-size: 26px; margin-bottom: 8px; }
+  .contact-card p { margin-top: 4px; }
+
+  /* Modal and toast */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(2, 6, 23, 0.5);
+    backdrop-filter: blur(3px);
+    display: none; align-items: center; justify-content: center;
+    z-index: 50; padding: 16px;
+  }
+  .modal-bg.open { display: flex; animation: fadeIn 0.25s; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 18px; padding: 26px; width: 440px; max-width: 100%;
+    animation: zoomIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .modal h2 { font-size: 18px; margin-bottom: 8px; }
+  .modal p { font-size: 14px; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
+  .modal .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
+  .plan {
+    border: 2px solid var(--border); border-radius: 12px; padding: 14px 16px;
+    cursor: pointer; margin-bottom: 10px;
+    display: flex; justify-content: space-between; align-items: center;
+    transition: all 0.2s;
+  }
+  .plan:hover { border-color: var(--brand); }
+  .plan.sel { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 9%, transparent); }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes zoomIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: none; } }
+
+  .toast {
+    position: fixed; bottom: 26px; left: 50%;
+    background: var(--accent); color: var(--accent-text);
+    padding: 12px 20px; border-radius: 12px; font-size: 14px;
+    z-index: 60; box-shadow: var(--shadow);
+    transform: translateX(-50%);
+    animation: toastIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), toastOut 0.4s 2.6s forwards;
+  }
+  @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
+  @keyframes toastOut { to { opacity: 0; transform: translate(-50%, 10px); } }
+
+  .empty { text-align: center; padding: 50px 20px; color: var(--muted); }
+  .empty .big { font-size: 44px; margin-bottom: 8px; }
+
+  /* Mobile */
+  @media (max-width: 760px) {
+    .app { margin: 0; border-radius: 0; flex-direction: column; min-height: 100vh; }
+    .sidebar { width: 100%; flex-direction: row; overflow-x: auto; padding: 10px; border-right: none; border-bottom: 1px solid var(--border); align-items: center; }
+    .logo { padding: 0 10px 0 4px; font-size: 16px; white-space: nowrap; }
+    .nav { flex-direction: row; }
+    .nav a { white-space: nowrap; }
+    .sidebar-bottom { display: none; }
+    .search, .search:focus { width: 100%; }
+    .row2 { grid-template-columns: 1fr; }
+    .content { padding: 18px; }
+    .topbar { padding: 16px 18px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+
+  /* ===== Dashboard layout matching the original design ===== */
+  .content.flush { padding: 0; max-width: none; }
+  .split { display: grid; grid-template-columns: 340px 1fr; min-height: calc(100vh - 110px); }
+  .list-col { border-right: 1px solid var(--border); padding: 18px; overflow-y: auto; }
+  .list-meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .list-meta .select { width: auto; padding: 4px 8px; font-size: 12px; }
+  .h-item {
+    position: relative; display: flex; gap: 12px; padding: 10px; margin-bottom: 12px;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+    cursor: pointer; transition: transform 0.25s, background 0.25s, border-color 0.25s;
+  }
+  .h-item:hover { transform: translateX(3px); }
+  .h-item.selected { background: var(--surface-2); border: 1.5px solid var(--text); }
+  .h-item .thumb { width: 80px; height: 80px; flex-shrink: 0; border-radius: 10px; background: var(--placeholder); }
+  .h-item .info { flex: 1; min-width: 0; padding-right: 22px; }
+  .h-item .kind { font-size: 11px; color: var(--muted); }
+  .h-item h4 { font-size: 14px; margin: 2px 0; }
+  .h-item .specs { font-size: 12px; color: var(--muted); }
+  .h-item .price { font-size: 13px; font-weight: 700; margin-top: 4px; }
+  .h-item .fav { position: absolute; top: 8px; right: 8px; width: auto; height: auto; background: none; box-shadow: none; font-size: 15px; }
+  .detail-col { padding: 24px 28px; overflow-y: auto; }
+  .d-gallery { display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr 1fr; gap: 10px; height: 300px; margin-bottom: 22px; }
+  .d-gallery .big { grid-row: span 3; border-radius: 12px; background: var(--placeholder); overflow: hidden; }
+  .d-gallery .small { border-radius: 12px; background: var(--placeholder); }
+  .d-gallery img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .d-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .d-head h2 { font-size: 22px; margin: 0 0 4px; font-family: inherit; }
+  .d-stats { display: flex; gap: 28px; flex-wrap: wrap; margin: 16px 0; font-size: 12px; color: var(--muted); }
+  .d-stats strong { display: block; color: var(--text); font-size: 15px; margin-top: 3px; }
+  .d-price { font-size: 22px; font-weight: 700; margin: 4px 0 14px; }
+  .book-now { padding: 12px 28px; font-size: 15px; }
+  .small-map { height: 220px; }
+  @media (max-width: 900px) {
+    .split { grid-template-columns: 1fr; }
+    .list-col { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+
+  /* ===== Promoted houses and minimal sponsored lines ===== */
+  .promo-label { font-size: 11px; font-weight: 700; color: #9a6700; margin-bottom: 2px; }
+  .ad-line {
+    display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 8px 10px;
+    border: 1px dashed var(--border); border-radius: 10px; background: transparent;
+    font-size: 12px; color: var(--muted);
+  }
+  .ad-line .ad-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; flex-shrink: 0; }
+  .ad-line .ad-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ad-line .ad-x { background: none; border: 0; padding: 2px 4px; cursor: pointer; color: var(--muted); font-size: 12px; }
+
+  /* ===== District tabs ===== */
+  .district-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 12px 18px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .district-tabs .chip { flex-shrink: 0; white-space: nowrap; }
+
+  /* ===== District picker ===== */
+  .district-picker { padding: 12px 18px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .district-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); font: inherit; font-weight: 600; cursor: pointer; }
+  .district-menu { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; padding-top: 12px; }
+  .district-opt { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+  .district-opt:hover { border-color: var(--text); }
+  .district-opt.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+
+  /* ===== Notifications ===== */
+  .top-actions { position: relative; }
+  .bell-wrap { position: relative; }
+  .bell-count { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .notify-panel { position: absolute; right: 0; top: 48px; width: 320px; max-width: 90vw; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); z-index: 30; animation: rise 0.25s var(--ease) both; }
+  .notify-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .notify-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; padding: 10px; border: 0; border-radius: 8px; background: none; font: inherit; text-align: left; cursor: pointer; }
+  .notify-item:hover { background: var(--surface-2); }
+  .notify-item.unread span { font-weight: 700; }
+  .notify-item small { color: var(--muted); font-size: 11px; }
+  .link-btn { background: none; border: 0; padding: 6px 0; color: var(--brand); font: inherit; font-size: 13px; cursor: pointer; }
+
+  /* ===== Travorra look: airy blue palette, serif headlines, pill buttons, floating cards ===== */
+  :root {
+    --bg: #f6f8fd; --surface: #ffffff; --surface-2: #eef4ff;
+    --text: #0f1b3d; --muted: #6b7694; --border: #e3eaf7;
+    --accent: #0f1b3d; --accent-text: #ffffff;
+    --brand: #1f66ff; --danger: #e5484d;
+    --placeholder: #dce7fb; --ad-bg: #f2f7ff; --ad-border: #c9d9f7;
+    --shadow: 0 18px 40px rgba(31, 62, 140, 0.10);
+    --shadow-sm: 0 6px 18px rgba(31, 62, 140, 0.08);
+    --font-display: "DM Serif Display", Georgia, serif;
+    --font-body: "Inter", system-ui, Arial, sans-serif;
+  }
+  body.dark {
+    --bg: #0b1328; --surface: #121c36; --surface-2: #1a2748;
+    --text: #eaf0ff; --muted: #98a3c4; --border: #22305a;
+    --accent: #eaf0ff; --accent-text: #0b1328;
+    --brand: #5b8dff; --danger: #ff6b70;
+    --placeholder: #1f2d52; --ad-bg: #16213f; --ad-border: #2c3e6e;
+    --shadow: 0 18px 40px rgba(0, 0, 0, 0.4); --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.3);
+  }
+  body {
+    font-family: var(--font-body); color: var(--text); background: var(--bg);
+    background-image: radial-gradient(900px 480px at 85% -5%, rgba(31, 102, 255, 0.10), transparent 60%);
+    background-attachment: fixed;
+  }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.01em; line-height: 1.1; color: var(--text); }
+
+  /* Top navigation: logo and links on one bar, secondary links and promotion box beside them */
+  .app { flex-direction: column; min-height: 100vh; margin: 0; border-radius: 0; box-shadow: none; background: transparent; }
+  .sidebar {
+    width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 18px;
+    padding: 16px 40px; border: none; border-bottom: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 20;
+  }
+  body.dark .sidebar { background: rgba(18, 28, 54, 0.8); }
+  .logo { padding: 0 20px 0 0; font: 400 22px var(--font-display); color: var(--text); white-space: nowrap; }
+  .nav { flex-direction: row; flex-wrap: wrap; gap: 2px; }
+  .nav a { padding: 8px 14px; font-size: 14px; font-weight: 500; border-radius: 999px; opacity: 0.8; color: var(--text); }
+  .nav a:hover { background: var(--surface-2); transform: none; opacity: 1; }
+  .nav a.active { background: var(--surface-2); color: var(--brand); opacity: 1; }
+  .sidebar-bottom { margin: 0 0 0 auto; display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .account-box { max-width: 300px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-sm); }
+  .account-box strong { font-size: 13px; }
+  .account-box span { font-size: 11px; color: var(--muted); }
+
+  .main { background: transparent; }
+  .topbar { background: transparent; border: none; padding: 44px 40px 20px; max-width: 1240px; width: 100%; margin: 0 auto; }
+  .topbar h1 { font-size: clamp(2.1rem, 4vw, 3.2rem); }
+  .topbar p { color: var(--muted); font-size: 15px; }
+  .top-actions .search { width: 300px; padding: 12px 18px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+  .search:focus { width: 340px; border-color: var(--brand); box-shadow: 0 0 0 4px rgba(31, 102, 255, 0.15); }
+  .icon-btn { width: 44px; height: 44px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+
+  .content { max-width: 1240px; width: 100%; margin: 0 auto; padding: 8px 40px 56px; }
+  .content.flush { padding: 0 40px 56px; }
+  .split {
+    grid-template-columns: 360px 1fr; min-height: 640px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 28px; box-shadow: var(--shadow); overflow: hidden;
+  }
+  .list-col { background: var(--bg); border-right: 1px solid var(--border); padding: 22px; }
+  .list-meta { font-size: 13px; color: var(--muted); }
+  .list-meta .select { border-radius: 999px; }
+  .h-item {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+    padding: 12px; margin-bottom: 14px; box-shadow: var(--shadow-sm);
+  }
+  .h-item:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+  .h-item.selected { background: var(--surface); border: 1.5px solid var(--brand); box-shadow: 0 12px 30px rgba(31, 102, 255, 0.18); }
+  .h-item .thumb { width: 88px; height: 88px; border-radius: 16px; background: linear-gradient(135deg, #cfe0ff, #eaf2ff); }
+  .h-item .kind { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brand); }
+  .h-item h4 { font-family: var(--font-display); font-weight: 400; font-size: 17px; }
+  .h-item .price { color: var(--brand); font-size: 14px; }
+  .h-item .fav { top: 10px; right: 10px; width: 30px; height: 30px; border-radius: 50%; background: var(--surface); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); display: grid; place-items: center; }
+  .promo-label { color: #c27803; }
+  .detail-col { padding: 30px 36px; background: var(--surface); }
+  .d-gallery { height: 340px; gap: 12px; }
+  .d-gallery .big, .d-gallery .small { border-radius: 22px; }
+  .d-gallery .small { background: linear-gradient(135deg, #d6e4ff, #f2f7ff); }
+  .d-head h2 { font-family: var(--font-display); font-weight: 400; font-size: 32px; margin: 0 0 6px; }
+  .d-stats { gap: 12px; margin: 20px 0; }
+  .d-stats > div { flex: 1; min-width: 110px; padding: 14px 16px; background: var(--surface-2); border-radius: 16px; font-size: 12px; color: var(--muted); }
+  .d-stats strong { font-family: var(--font-display); font-weight: 400; font-size: 20px; color: var(--text); }
+  .d-price { font-family: var(--font-display); font-size: 32px; color: var(--brand); }
+  .book-now { border-radius: 999px; padding: 14px 32px; background: var(--brand); color: #fff; font-weight: 600; box-shadow: 0 10px 24px rgba(31, 102, 255, 0.28); }
+  .book-now:hover:not(:disabled) { background: #1450d6; }
+  .small-map { height: 240px; border-radius: 22px; }
+
+  .district-picker { padding: 0 0 18px; background: transparent; border: none; }
+  .district-toggle { border-radius: 999px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+  .district-menu { background: var(--surface); border: 1px solid var(--border); border-radius: 22px; padding: 14px; box-shadow: var(--shadow); }
+  .district-opt { border-radius: 999px; background: var(--bg); }
+  .district-opt.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+  .btn { border-radius: 999px; padding: 12px 22px; background: var(--brand); color: #fff; font-weight: 600; box-shadow: 0 8px 20px rgba(31, 102, 255, 0.22); }
+  .btn:hover:not(:disabled) { background: #1450d6; }
+  .btn-light { background: var(--surface); color: var(--brand); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+  .btn-danger { background: var(--danger); box-shadow: none; }
+  .btn-small { padding: 8px 16px; font-size: 13px; }
+  .chip { border-radius: 999px; background: var(--surface); border: 1px solid var(--border); }
+  .chip.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; box-shadow: var(--shadow-sm); }
+  .listing { border-radius: 24px; border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+  .tag { border-radius: 999px; background: rgba(15, 27, 61, 0.75); }
+  .tag.promo-tag { background: var(--brand); }
+  .pill { border-radius: 999px; }
+  .empty { background: var(--surface); border: 1px dashed var(--border); border-radius: 24px; }
+  .modal { border-radius: 24px; }
+  .notify-panel { border-radius: 20px; }
+  input, select, textarea {
+    border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    padding: 10px 12px; font: inherit;
+  }
+
+  @media (max-width: 900px) {
+    .split { grid-template-columns: 1fr; }
+    .list-col { border-right: none; border-bottom: 1px solid var(--border); }
+    .sidebar, .topbar, .content { padding-left: 18px; padding-right: 18px; }
+    .content.flush { padding: 0 18px 40px; }
+    .sidebar-bottom { margin-left: 0; }
+  }
+
+  /* ===== Photo upload ===== */
+  .photo-strip { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; align-items: center; }
+  .photo-thumb { position: relative; width: 96px; height: 96px; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); }
+  .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photo-x { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border: 0; border-radius: 50%; background: rgba(15, 27, 61, 0.75); color: #fff; font-size: 11px; cursor: pointer; }
+  .photo-count { width: 100%; font-size: 12px; }
+  .h-item .thumb img, .d-gallery img { border-radius: inherit; }
+  .h-item .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 16px; }
+  input[type="file"] { padding: 8px; }
+
+  /* ===== Home, Explore map, features ===== */
+  .eyebrow { text-transform: uppercase; letter-spacing: 0.12em; font-size: 12px; font-weight: 700; color: var(--brand); margin: 0 0 6px; }
+  .home-hero { background: var(--surface); border: 1px solid var(--border); border-radius: 28px; padding: 44px; box-shadow: var(--shadow); margin-bottom: 36px; }
+  .home-title { font-size: clamp(2rem, 4vw, 3rem); margin: 4px 0 22px; }
+  .home-search { display: flex; gap: 12px; flex-wrap: wrap; }
+  .home-search input { flex: 1; min-width: 240px; padding: 14px 20px; border-radius: 999px; border: 1px solid var(--border); font: inherit; }
+  .home-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  h2.big { font-family: var(--font-display); font-weight: 400; font-size: 26px; margin: 0 0 16px; }
+  section + section { margin-top: 36px; }
+  .explore-split { display: grid; grid-template-columns: 1fr 380px; min-height: 640px; border: 1px solid var(--border); border-radius: 28px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
+  .explore-map-wrap { min-height: 640px; }
+  .map-canvas { width: 100%; height: 100%; min-height: 640px; }
+  .explore-side { border-left: 1px solid var(--border); padding: 18px; max-height: 760px; overflow-y: auto; background: var(--bg); }
+  .explore-side .district-picker { padding: 0 0 14px; }
+  .popup-btn { margin-top: 6px; padding: 6px 12px; border: 0; border-radius: 999px; background: var(--brand); color: #fff; font: inherit; font-size: 12px; cursor: pointer; }
+  .feature-group h4 { font-family: inherit; font-size: 13px; color: var(--muted); margin: 14px 0 8px; }
+  .feature-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+  .feature-list label { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); font-size: 13px; cursor: pointer; }
+  input[type="checkbox"] { width: 16px; height: 16px; padding: 0; }
+  @media (max-width: 900px) {
+    .explore-split { grid-template-columns: 1fr; }
+    .map-canvas, .explore-map-wrap { min-height: 380px; }
+    .explore-side { border-left: none; border-top: 1px solid var(--border); max-height: none; }
+    .home-hero { padding: 26px; }
+  }
+
+  /* ===== Home ad cards: same size as listing cards ===== */
+  .ad-card { border: 1px dashed var(--ad-border); background: var(--ad-bg); box-shadow: none; position: relative; }
+  .ad-card:hover { transform: none; box-shadow: none; }
+  .ad-cover { display: flex; align-items: center; justify-content: center; padding: 20px; text-align: center; background: linear-gradient(135deg, var(--ad-bg), var(--surface-2)); }
+  .ad-mark { font-family: var(--font-display); font-size: 20px; color: var(--text); }
+  .ad-card .listing-body p { font-size: 13px; margin: 0; }
+  .ad-card .ad-x { position: absolute; top: 10px; right: 10px; width: 28px; height: 28px; border: 0; border-radius: 50%; background: var(--surface); color: var(--muted); cursor: pointer; }
+
+  /* ===== Location pin on the post form ===== */
+  .pin-map { height: 300px; border-radius: 16px; border: 1px solid var(--border); margin: 10px 0 8px; }
+
+  /* ===== Mobile optimisation ===== */
+  @media (max-width: 720px) {
+    /* Inputs at 16px stop iPhones zooming in when a field is tapped */
+    input, select, textarea { font-size: 16px; }
+
+    /* Navigation becomes one swipeable row */
+    .sidebar { flex-wrap: nowrap; overflow-x: auto; gap: 4px; padding: 10px 14px; scrollbar-width: none; }
+    .sidebar::-webkit-scrollbar { display: none; }
+    .logo { flex-shrink: 0; font-size: 18px; padding-right: 10px; }
+    .nav, .sidebar-bottom { flex-wrap: nowrap; flex-shrink: 0; }
+    .sidebar-bottom { margin: 0; gap: 2px; }
+    .nav a { display: flex; align-items: center; min-height: 44px; padding: 10px 12px; white-space: nowrap; }
+    /* The promotion box is hidden on phones; promoting is still available from My Listings */
+    .account-box { display: none; }
+
+    /* Page header stacks, search takes full width */
+    .topbar { flex-direction: column; align-items: stretch; gap: 12px; padding: 18px 14px 8px; }
+    .topbar h1 { font-size: 1.8rem; }
+    .top-actions { width: 100%; justify-content: space-between; gap: 10px; }
+    .top-actions .search, .search:focus { width: 100%; min-width: 0; flex: 1; }
+    .icon-btn { width: 44px; height: 44px; flex-shrink: 0; }
+    .content, .content.flush { padding: 8px 14px 40px; }
+
+    /* Home */
+    .home-hero { padding: 22px 18px; border-radius: 22px; }
+    .home-title { font-size: 1.9rem; }
+    .home-search { flex-direction: column; }
+    .home-search input, .home-search .btn { width: 100%; min-width: 0; }
+    .home-actions .btn { flex: 1 1 100%; }
+    h2.big { font-size: 22px; }
+    .grid { grid-template-columns: 1fr; gap: 14px; }
+    .listing .cover { height: 180px; }
+
+    /* Explore: map on top, list below */
+    .explore-split { min-height: 0; border-radius: 20px; }
+    .explore-map-wrap { min-height: 0; }
+    .map-canvas { min-height: 56vh; height: 56vh; }
+    .explore-side { max-height: none; padding: 14px; }
+    .list-meta { flex-wrap: wrap; }
+    .district-toggle { width: 100%; justify-content: center; min-height: 44px; }
+    .district-menu { grid-template-columns: repeat(2, 1fr); }
+    .district-opt { min-height: 40px; }
+
+    /* Dashboard lists and details */
+    .split { grid-template-columns: 1fr; min-height: 0; border-radius: 20px; }
+    .list-col { max-height: none; padding: 14px; }
+    .h-item { padding: 10px; }
+    .h-item .thumb { width: 72px; height: 72px; }
+    .detail-col { padding: 18px 16px 28px; }
+    .d-gallery { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 220px 84px; height: auto; gap: 8px; }
+    .d-gallery .big { grid-column: span 3; grid-row: auto; }
+    .d-gallery .small { height: 84px; }
+    .d-head h2 { font-size: 26px; }
+    .d-price { font-size: 26px; }
+    .d-stats > div { min-width: 40%; }
+    .book-now { width: 100%; }
+    .small-map { height: 220px; }
+    .gallery { height: 240px; }
+    .facts { grid-template-columns: 1fr 1fr; }
+    .side-card { position: static; }
+    .listing-layout { gap: 24px; }
+
+    /* Forms */
+    .row2 { grid-template-columns: 1fr; }
+    .feature-list { grid-template-columns: 1fr 1fr; }
+    .feature-list label { font-size: 12px; padding: 8px; }
+    .photo-thumb { width: 84px; height: 84px; }
+    .pin-map { height: 240px; }
+    .card { padding: 16px; border-radius: 20px; }
+    .contact-grid { grid-template-columns: 1fr; }
+
+    /* Notifications and dialogs */
+    .notify-panel { position: fixed; top: 70px; left: 12px; right: 12px; width: auto; max-width: none; }
+    .modal-bg { padding: 12px; align-items: flex-end; }
+    .modal { width: 100%; padding: 22px; border-radius: 22px 22px 16px 16px; }
+    .modal .actions { flex-wrap: wrap; }
+    .btn { min-height: 44px; }
+    .btn-small { min-height: 40px; }
+    .chip { min-height: 36px; }
+    .ad-card .ad-x { width: 32px; height: 32px; }
+    .toast { width: calc(100% - 28px); max-width: 420px; white-space: normal; text-align: center; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+    .faq-q { font-size: 16px; }
+  }
+  @media (max-width: 380px) {
+    .home-title { font-size: 1.6rem; }
+    .d-stats > div { min-width: 45%; }
+  }
+  /* Phones do not need hover lift effects */
+  @media (hover: none) {
+    .listing:hover, .h-item:hover, .btn:hover, .chip:hover { transform: none; }
+  }
+
+  /* ===== Modern shell: centred logo, menu drawer, floating dock ===== */
+  .app { padding-bottom: 120px; }
+  .app-bar { position: sticky; top: 0; z-index: 25; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 12px 18px; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+  .app-logo { font: 400 24px var(--font-display); color: var(--text); letter-spacing: -0.01em; text-align: center; white-space: nowrap; }
+  .app-bar-spacer { width: 44px; }
+  .menu-btn { width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow-sm); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+  .menu-btn span { display: block; width: 18px; height: 2px; border-radius: 2px; background: var(--text); }
+  .menu-scrim { position: fixed; inset: 0; z-index: 45; background: rgba(8, 14, 30, 0.35); opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+  body.menu-open .menu-scrim { opacity: 1; pointer-events: auto; }
+  .sidebar {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 50;
+    width: 290px; max-width: 86vw; margin: 0; padding: 26px 18px 28px;
+    display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 0;
+    background: var(--surface); border: none; border-right: 1px solid var(--border);
+    box-shadow: var(--shadow); backdrop-filter: none; -webkit-backdrop-filter: none;
+    overflow-y: auto; overflow-x: hidden;
+    transform: translateX(-105%); transition: transform 0.35s var(--ease);
+  }
+  body.menu-open .sidebar { transform: none; }
+  .sidebar .logo { display: none; }
+  .sidebar .nav { flex-direction: column; flex-wrap: nowrap; gap: 2px; }
+  .sidebar .nav a { display: flex; align-items: center; min-height: 46px; padding: 12px 14px; border-radius: 14px; font-size: 15px; white-space: normal; opacity: 1; }
+  .sidebar .nav a.active { background: var(--surface-2); color: var(--brand); }
+  .sidebar-bottom { margin: 24px 0 0; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 12px; }
+  .sidebar-bottom .nav { flex-direction: column; flex-wrap: nowrap; }
+  .account-box { display: block; max-width: none; }
+
+  .dock {
+    position: fixed; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+    z-index: 40; display: flex; align-items: stretch; gap: 4px; padding: 8px;
+    border-radius: 28px; background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(18px) saturate(1.6); -webkit-backdrop-filter: blur(18px) saturate(1.6);
+    border: 1px solid rgba(255, 255, 255, 0.7); box-shadow: 0 16px 40px rgba(15, 27, 61, 0.18);
+  }
+  body.dark .dock { background: rgba(18, 28, 54, 0.72); border-color: rgba(255, 255, 255, 0.08); }
+  .dock a {
+    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    min-width: 72px; padding: 8px 12px; border-radius: 20px; color: var(--muted); text-decoration: none;
+    font-size: 11px; font-weight: 500; transition: background 0.25s, color 0.25s, transform 0.25s var(--ease);
+  }
+  .dock a:hover { transform: translateY(-2px); }
+  .dock a.active { color: var(--brand); background: var(--surface); box-shadow: 0 4px 14px rgba(31, 62, 140, 0.12); }
+  .dock-icon { position: relative; display: flex; width: 26px; height: 26px; }
+  .dock-icon svg { width: 26px; height: 26px; }
+  .dock a.active svg { fill: currentColor; fill-opacity: 0.15; }
+  .dock-badge { position: absolute; top: -6px; right: -12px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--text); color: var(--bg); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .dock-label { line-height: 1; }
+  @media (max-width: 720px) {
+    .dock a { min-width: 64px; padding: 8px 8px; }
+    .app-bar { padding: 10px 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+<header class="app-bar">
+    <button class="menu-btn" data-action="toggle-menu" aria-label="Open menu"><span></span><span></span><span></span></button>
+    <div class="app-logo">Zonse Homes</div>
+    <span class="app-bar-spacer"></span>
+  </header>
+  <aside class="sidebar">
+    
+    <nav class="nav" id="nav">
+      <a href="#/home" data-page="home">Home</a>
+      <a href="#/explore" data-page="explore">Explore</a>
+      <a href="#/mine" data-page="mine">My Listings</a>
+      <a href="#/post" data-page="post">Post a Listing</a>
+      <a href="#/save" data-page="save">Saved</a>
+      <a href="#/messages" data-page="messages">Messages</a>
+      <a href="#/settings" data-page="settings">Settings</a>
+    </nav>
+    <div class="sidebar-bottom">
+      <nav class="nav">
+        <a href="#/faq" data-page="faq">Help Center</a>
+        <a href="#/support" data-page="support">Customer support</a>
+        <a href="#/account" data-page="account">Account</a>
+      </nav>
+      <div class="account-box" id="account-box"></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar" id="topbar"></header>
+    <section class="content" id="page"></section>
+  </main>
+</div>
+
+<div class="menu-scrim" id="menu-scrim"></div>
+<nav class="dock" id="dock" aria-label="Main"></nav>
+<div class="modal-bg" id="modal"><div class="modal" id="modal-box"></div></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  // ================= CONFIGURATION (change these to your real details) =================
+  const KEY = "zonse-homes-v1";
+  const SUPPORT = {
+    phone: "+265 999 000 000",
+    whatsapp: "265999000000",
+    email: "support@zonsehomes.mw",
+    hours: "Mon–Sat, 8am–6pm"
+  };
+  const PLANS = [
+    { days: 7, price: 5000 },
+    { days: 30, price: 15000 }
+  ];
+  const ADS = [
+    { title: "Need movers in Lilongwe?", text: "Get free quotes from trusted moving partners." },
+    { title: "Furnish your new home", text: "Affordable furniture delivered across Malawi." },
+    { title: "Protect your property", text: "Simple home insurance plans for owners and landlords." }
+  ];
+  const QUICK = ["Is this still available?", "Can I book a viewing?", "Is the price negotiable?"];
+  const FAQS = [
+    ["Is Zonse Homes really free to use?", "Yes. Creating an account, posting listings, browsing, saving favourites and chatting are all free. There are no monthly subscriptions."],
+    ["How do I post a house, apartment, Airbnb or land?", "Log in, press Post a listing, fill in the details, choose your district and publish. Your listing appears on Explore straight away."],
+    ["Can companies and individuals both post?", "Yes. When you sign up, choose Individual or Company. Both can post listings for rent, sale, short stays or land."],
+    ["What does Promote mean?", "Promoting a listing puts it at the top of search results with a ⭐ badge for 7 or 30 days. It is optional. A normal listing stays free."],
+    ["How does the map work?", "Explore shows a Google Map. Press Use my location and allow access, and listings are sorted by distance from you. Each listing also has its own map."],
+    ["How do I contact a seller?", "Open a listing and press Message seller. You need to be logged in. Your conversation appears under Messages."],
+    ["Are the ads intrusive?", "No. Ads are small, clearly marked as Sponsored, and appear only between listings. You can close any ad with the ✕ button."],
+    ["How do I switch between light and dark mode?", "Press the 🌙 or ☀️ button at the top right, or use the Appearance options in Settings."]
+  ];
+  const DISTRICTS = {
+    "Lilongwe": [-13.9626, 33.7741],
+    "Blantyre": [-15.7861, 35.0058],
+    "Mzuzu": [-11.4598, 34.0287],
+    "Zomba": [-15.3851, 35.3188],
+    "Mangochi": [-14.4783, 35.2644],
+    "Salima": [-13.7781, 34.4420],
+    "Kasungu": [-13.0333, 33.4833],
+    "Karonga": [-9.9333, 33.9333],
+    "Dedza": [-14.3667, 34.3333],
+    "Liwonde": [-15.0600, 35.2236],
+    "Nkhotakota": [-12.9274, 34.2960],
+    "Mzimba": [-11.9000, 33.6000],
+    "Nkhata Bay": [-11.6000, 34.3000],
+    "Ntcheu": [-14.8186, 34.6428],
+    "Balaka": [-14.9833, 34.9500],
+    "Rumphi": [-11.0167, 33.8667],
+    "Chitipa": [-9.7000, 33.2700],
+    "Monkey Bay": [-14.0880, 34.9186]
+  };
+  const CATEGORY_ICON = { House: "🏡", Apartment: "🏢", Airbnb: "🛏️", Land: "🌍" };
+  const PROTECTED = ["post", "mine", "messages", "favorites", "save"];
+  const TITLES = {
+    home: ["Home", "Find a place in Malawi"],
+    explore: ["Explore", "Every property on the map"],
+    save: ["Saved", "Properties you saved"],
+    listing: ["Listing details", "Photos, location and contact"],
+    post: ["Post a listing", "Free to list. Takes about 2 minutes"],
+    mine: ["My listings", "Manage, promote or remove what you posted"],
+    messages: ["Messages", "Chat with people interested in your listings"],
+    favorites: ["Favourites", "Listings you saved"],
+    faq: ["FAQ", "Quick answers to common questions"],
+    support: ["Customer support", "We are here to help"],
+    settings: ["Settings", "Theme and profile"],
+    account: ["Account", "Log in or create your free account"]
+  };
+
+  // ================= DATA (saved in this browser) =================
+  function seedData() {
+    const agent = "u-demo";
+    const L = (id, o) => ({ id, owner: agent, promoted: 0, created: Date.now() - id * 3600e3, image: "", ...o });
+    return {
+      users: [{ id: agent, name: "Demo Agent", email: "agent@demo.mw", password: "demo123", phone: "+265 999 000 111", accountType: "Company", favorites: [] }],
+      listings: [
+        L(1, { title: "Sunset Paradise", purpose: "Rent", category: "Apartment", district: "Lilongwe", lat: -13.9626, lng: 33.7741, price: 450000, beds: 1, baths: 1, area: 58, description: "Bright one-bedroom apartment close to the city centre, with secure parking and backup water." }),
+        L(2, { title: "Serenity Heights", purpose: "Sale", category: "House", district: "Blantyre", lat: -15.7861, lng: 35.0058, price: 95000000, beds: 3, baths: 3, area: 656, promoted: Date.now() + 7 * 864e5, description: "A spacious, modern family home in a quiet neighbourhood with a garden and a double garage." }),
+        L(3, { title: "Lakeside Getaway", purpose: "Rent", category: "Airbnb", district: "Mangochi", lat: -14.4783, lng: 35.2644, price: 85000, beds: 2, baths: 1, area: 90, description: "Cosy short-stay cottage a short walk from the lake. Fully furnished with Wi-Fi." }),
+        L(4, { title: "Tranquil Oaks", purpose: "Rent", category: "House", district: "Zomba", lat: -15.3851, lng: 35.3188, price: 380000, beds: 2, baths: 2, area: 120, description: "Two-bedroom house at the foot of the mountain, with a courtyard and water tank." }),
+        L(5, { title: "Open Land near Dedza", purpose: "Sale", category: "Land", district: "Dedza", lat: -14.3667, lng: 34.3333, price: 5000000, beds: 0, baths: 0, area: 10000, description: "Flat plot with road access and a clear title ready for transfer. Ideal for farming or building." }),
+        L(6, { title: "The Haven Residences", purpose: "Sale", category: "Apartment", district: "Mzuzu", lat: -11.4598, lng: 34.0287, price: 42000000, beds: 2, baths: 2, area: 140, description: "Modern second-floor apartment with a balcony, lift access and 24-hour security." })
+      ],
+      messages: [],
+      tickets: []
+    };
+  }
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return seedData();
+  }
+  const db = load();
+  db.tickets = db.tickets || [];
+  db.messages = db.messages || [];
+  db.notifications = db.notifications || [];
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(db)); }
+    catch (e) { toast("Could not save on this device"); }
+  }
+
+  // ================= UI STATE =================
+  const ui = {
+    session: localStorage.getItem("zh-session"),
+    theme: localStorage.getItem("zh-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"),
+    userLoc: null,
+    filters: { purpose: "all", category: "all", district: "all", search: "", sort: "newest" },
+    hiddenAds: new Set(),
+    activeChat: null,
+    authTab: "login",
+    returnTo: null,
+    popId: null,
+    selectedId: null,
+    districtOpen: false,
+    notifyOpen: false,
+    draftFor: null,
+    draftPhotos: [],
+    draftFeatures: [],
+    draftPin: null
+  };
+
+  // ================= HELPERS =================
+  const $ = id => document.getElementById(id);
+  const money = n => "MWK " + Number(n).toLocaleString("en-US");
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const uid = () => Date.now() + Math.floor(Math.random() * 1000);
+  const me = () => db.users.find(u => u.id === ui.session) || null;
+  const isPromoted = l => (l.promoted || 0) > Date.now();
+  const priceText = l => money(l.price) + (l.category === "Airbnb" ? " / night" : l.purpose === "Rent" ? " / month" : "");
+  const initials = n => n.split(" ").map(p => p[0]).slice(0, 2).join("").toUpperCase();
+  const greeting = () => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; };
+  const currentRoute = () => {
+    const p = location.hash.replace(/^#\/?/, "").split("/");
+    return { page: p[0] || "home", id: p[1] ? Number(p[1]) : null };
+  };
+  function go(hash) {
+    if (location.hash === hash) route();
+    else location.hash = hash;
+  }
+  function km(a, b) {
+    const R = 6371, rad = d => d * Math.PI / 180;
+    const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+    const x = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  }
+  function toast(msg) {
+    const t = document.createElement("div");
+    t.className = "toast";
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+  }
+  function openModal(html) {
+    $("modal-box").innerHTML = html;
+    $("modal").classList.add("open");
+  }
+  function closeModal() { $("modal").classList.remove("open"); }
+  function setSession(id) {
+    ui.session = id;
+    if (id) localStorage.setItem("zh-session", id);
+    else localStorage.removeItem("zh-session");
+  }
+  function setTheme(t) {
+    ui.theme = t;
+    localStorage.setItem("zh-theme", t);
+    document.body.classList.toggle("dark", t === "dark");
+    refresh();
+  }
+
+  // ================= LOCATION =================
+  function locate() {
+    if (!navigator.geolocation) return toast("Location is not supported on this browser");
+    toast("Finding your location…");
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        ui.userLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        ui.filters.sort = "nearest";
+        toast("📍 Showing listings nearest to you");
+        refresh();
+      },
+      () => { toast("Location was not shared. Showing all of Malawi."); refresh(); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  // ================= LISTINGS =================
+  function visibleListings() {
+    const f = ui.filters, q = f.search.trim().toLowerCase();
+    let list = db.listings.filter(l =>
+      (f.purpose === "all" || l.purpose === f.purpose) &&
+      (f.category === "all" || l.category === f.category) &&
+      (f.district === "all" || l.district === f.district) &&
+      (!q || (l.title + " " + l.district + " " + l.category + " " + l.description).toLowerCase().includes(q))
+    );
+    if (f.sort === "price-low") list.sort((a, b) => a.price - b.price);
+    else if (f.sort === "price-high") list.sort((a, b) => b.price - a.price);
+    else if (f.sort === "nearest" && ui.userLoc) list.sort((a, b) => km(ui.userLoc, a) - km(ui.userLoc, b));
+    else list.sort((a, b) => b.created - a.created);
+    return list.sort((a, b) => (isPromoted(b) ? 1 : 0) - (isPromoted(a) ? 1 : 0));
+  }
+  function cardHTML(l, i) {
+    const m = me();
+    const fav = m ? m.favorites.includes(l.id) : false;
+    const promoted = isPromoted(l);
+    const tag = promoted ? "⭐ Promoted" : l.category === "Airbnb" ? "Short stay" : l.purpose === "Rent" ? "For rent" : "For sale";
+    const specs = l.category === "Land" ? `${l.area.toLocaleString()} m² plot` : `${l.beds} bed · ${l.baths} bath · ${l.area} m²`;
+    const dist = ui.userLoc ? `${km(ui.userLoc, l).toFixed(0)} km away · ` : "";
+    return `
+      <article class="listing" style="animation-delay:${Math.min(i, 10) * 60}ms" data-action="open" data-id="${l.id}">
+        <div class="cover ${l.image ? "" : "shimmer"}">
+          ${l.image ? `<img src="${esc(l.image)}" alt="">` : `<div class="emoji">${CATEGORY_ICON[l.category]}</div>`}
+          <span class="tag ${promoted ? "promo-tag" : ""}">${tag}</span>
+          <button class="fav ${fav ? "on" : ""} ${ui.popId === l.id ? "pop" : ""}" data-action="fav" data-id="${l.id}" aria-label="Save listing">${fav ? "♥" : "♡"}</button>
+        </div>
+        <div class="listing-body">
+          <div class="muted">${esc(l.category)} · ${esc(l.district)}</div>
+          <h3>${esc(l.title)}</h3>
+          <div class="muted">${specs}</div>
+          <div class="muted">${dist}</div>
+          <div class="price">${priceText(l)}</div>
+        </div>
+      </article>`;
+  }
+  function adHTML(k) {
+    if (ui.hiddenAds.has(k)) return "";
+    const ad = ADS[k % ADS.length];
+    return `<div class="ad-line"><span class="ad-tag">Sponsored</span><span class="ad-text">${esc(ad.title)}</span><button class="ad-x" data-action="hide-ad" data-id="${k}" aria-label="Hide ad">✕</button></div>`;
+  }
+  function gridHTML() {
+    const list = visibleListings();
+    if (!list.length) return `<div class="empty"><div class="big">🔍</div><p>No listings match. Try different filters.</p></div>`;
+    let html = "";
+    list.forEach((l, i) => {
+      html += cardHTML(l, i);
+      if ((i + 1) % 5 === 0) html += adHTML((i + 1) / 5);
+    });
+    return html;
+  }
+  function statsHTML(l) {
+    const items = [];
+    if (l.category !== "Land") items.push(["Bedrooms", l.beds], ["Bathrooms", l.baths]);
+    items.push(["Size", l.area ? l.area.toLocaleString() + " m²" : "—"], ["Location", l.district]);
+    return `<div class="stats">${items.map(([k, v]) => `<div>${k}<strong>${esc(v)}</strong></div>`).join("")}</div>`;
+  }
+
+  // ================= VIEWS =================
+  function currentSelection(list) {
+    return list.find(l => l.id === ui.selectedId) || list[0] || null;
+  }
+  function itemHTML(l, selId) {
+    const m = me();
+    const fav = m ? m.favorites.includes(l.id) : false;
+    const specs = l.category === "Land" ? `${l.area} m² plot` : `${l.beds} bedroom · ${l.baths} bath · ${l.area} m²`;
+    return `
+      <div class="h-item ${l.id === selId ? "selected" : ""}" data-action="select" data-id="${l.id}">
+        <div class="thumb">${coverSrc(l) ? `<img src="${coverSrc(l)}" alt="">` : ""}</div>
+        <div class="info">
+          ${isPromoted(l) ? '<div class="promo-label">⭐ Promoted</div>' : ""}
+          <div class="kind">${esc(l.category)} in ${esc(l.district)}</div>
+          <h4>${esc(l.title)}</h4>
+          <div class="specs">${specs}</div>
+          <div class="price">${priceText(l)}</div>
+        </div>
+        <button class="fav ${fav ? "on" : ""} ${ui.popId === l.id ? "pop" : ""}" data-action="fav" data-id="${l.id}" aria-label="Save listing">${fav ? "♥" : "♡"}</button>
+      </div>`;
+  }
+  function listHTML(list, selId) {
+    if (!list.length) return `<div class="empty">No houses match your search.</div>`;
+    return list.map((l, i) => itemHTML(l, selId) + ((i + 1) % 5 === 0 ? adHTML((i + 1) / 5) : "")).join("");
+  }
+  function detailHTML(l) {
+    const pics = l.photos && l.photos.length ? l.photos : (l.image ? [l.image] : []);
+    const q = `${l.lat},${l.lng}`;
+    return `
+      <div class="d-gallery">
+        <div class="big">${pics[0] ? `<img src="${pics[0]}" alt="">` : ""}</div>
+        ${[1, 2, 3].map(i => `<div class="small">${pics[i] ? `<img src="${pics[i]}" alt="">` : ""}</div>`).join("")}
+      </div>
+      <div class="d-head">
+        <div>
+          <h2>${esc(l.title)}</h2>
+          <p class="muted">${esc(l.district)}, Malawi</p>
+        </div>
+        <button class="btn btn-light" data-action="tour" data-id="${l.id}">Book a tour</button>
+      </div>
+      <div class="d-stats">
+        <div>Bedroom<strong>${l.beds}</strong></div>
+        <div>Bathroom<strong>${l.baths}</strong></div>
+        <div>Area<strong>${l.area} m²</strong></div>
+        <div>Type<strong>${esc(l.category)}</strong></div>
+      </div>
+      <p class="muted" style="font-size:14px;line-height:1.6">${esc(l.description)}</p>
+      <p class="muted" style="margin-top:18px">Price</p>
+      <div class="d-price">${priceText(l)}</div>
+      <button class="btn book-now" data-action="book" data-id="${l.id}">Book Now</button>
+      <h3 class="sec-title" style="margin-top:26px">📍 Location</h3>
+      <iframe class="map small-map" title="Map" loading="lazy" src="https://www.google.com/maps?q=${q}&z=13&output=embed"></iframe>
+      <p style="margin-top:8px"><a class="muted" href="https://www.google.com/maps?q=${q}" target="_blank" rel="noopener">Open in Google Maps ↗</a></p>`;
+  }
+  function detailPanel(sel) {
+    return sel ? detailHTML(sel) : `<div class="empty">Select a house to see its details.</div>`;
+  }
+  function districtPicker() {
+    const current = ui.filters.district === "all" ? "All Malawi" : ui.filters.district;
+    const options = [["all", "All Malawi"], ...Object.keys(DISTRICTS).map(d => [d, d])];
+    return `
+      <button class="district-toggle" data-action="toggle-districts" aria-expanded="${ui.districtOpen}">
+        📍 ${esc(current)} <span>${ui.districtOpen ? "▴" : "▾"}</span>
+      </button>
+      ${ui.districtOpen ? `<div class="district-menu">${options.map(([value, label]) =>
+        `<button class="district-opt ${ui.filters.district === value ? "active" : ""}" data-action="district" data-value="${esc(value)}">${esc(label)}</button>`
+      ).join("")}</div>` : ""}`;
+  }
+
+  // ----- Notifications -----
+  function notify(userId, text, listingId, fromId) {
+    db.notifications.unshift({ id: uid(), userId, text, listingId, fromId, time: Date.now(), read: false });
+    save();
+    const user = me();
+    if (user && user.id === userId && "Notification" in window && Notification.permission === "granted") {
+      try { new Notification("Zonse Homes", { body: text }); } catch (e) {}
+    }
+  }
+  function myNotifications() {
+    const m = me();
+    return m ? db.notifications.filter(n => n.userId === m.id).sort((a, b) => b.time - a.time) : [];
+  }
+  function timeAgo(t) {
+    const mins = Math.round((Date.now() - t) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + " min ago";
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return hours + " h ago";
+    return Math.round(hours / 24) + " d ago";
+  }
+  function notifyBell() {
+    if (!me()) return "";
+    const all = myNotifications();
+    const unread = all.filter(n => !n.read).length;
+    return `
+      <div class="bell-wrap">
+        <button class="icon-btn bell" data-action="toggle-notify-panel" aria-label="Notifications" aria-expanded="${ui.notifyOpen}">
+          🔔${unread ? `<span class="bell-count">${unread}</span>` : ""}
+        </button>
+        ${ui.notifyOpen ? `
+          <div class="notify-panel">
+            <div class="notify-head">
+              <strong>Notifications</strong>
+              ${unread ? `<button class="link-btn" data-action="mark-read">Mark all read</button>` : ""}
+            </div>
+            ${all.length ? all.slice(0, 8).map(n => `
+              <button class="notify-item ${n.read ? "" : "unread"}" data-action="open-notification" data-id="${n.id}">
+                <span>${esc(n.text)}</span><small>${timeAgo(n.time)}</small>
+              </button>`).join("") : `<p class="muted">No notifications yet.</p>`}
+            <button class="link-btn" data-action="go" data-to="settings">Notification settings</button>
+          </div>` : ""}
+      </div>`;
+  }
+  function openNotification(id) {
+    const n = db.notifications.find(x => x.id === id);
+    if (!n) return;
+    n.read = true;
+    ui.notifyOpen = false;
+    ui.activeChat = { listingId: n.listingId, otherId: n.fromId };
+    save();
+    go("#/messages");
+  }
+  function enableBrowserAlerts() {
+    if (!("Notification" in window)) return toast("This browser does not support alerts");
+    Notification.requestPermission().then(p => {
+      toast(p === "granted" ? "Browser alerts are on" : "Browser alerts are blocked in this browser");
+      refresh();
+    });
+  }
+  // ----- Photos -----
+  const MAX_PHOTOS = 6;
+  function coverSrc(l) { return (l.photos && l.photos[0]) || l.image || ""; }
+  function compressImage(file) {
+    // Resize and compress in the browser so photos stay small enough to save.
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          const scale = Math.min(1, 1000 / Math.max(img.width, img.height));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", 0.75));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  function photoStripHTML() {
+    const thumbs = ui.draftPhotos.map((src, i) => `
+      <div class="photo-thumb">
+        <img src="${src}" alt="Photo ${i + 1}">
+        <button class="photo-x" data-action="remove-photo" data-id="${i}" aria-label="Remove photo">✕</button>
+      </div>`).join("");
+    const hint = ui.draftPhotos.length === 0 ? " · add a photo so buyers can see the property" : "";
+    return thumbs + `<p class="muted photo-count">${ui.draftPhotos.length} of ${MAX_PHOTOS} photos${hint}</p>`;
+  }
+  function updatePhotoStrip() {
+    if ($("photo-strip")) $("photo-strip").innerHTML = photoStripHTML();
+    if ($("f-photos")) $("f-photos").disabled = ui.draftPhotos.length >= MAX_PHOTOS;
+  }
+  async function addPhotos(files) {
+    const room = MAX_PHOTOS - ui.draftPhotos.length;
+    const chosen = Array.from(files).filter(f => f.type.startsWith("image/")).slice(0, Math.max(room, 0));
+    if (room <= 0) return toast(`You can add up to ${MAX_PHOTOS} photos`);
+    if (!chosen.length) return toast("Please choose image files");
+    for (const file of chosen) {
+      try { ui.draftPhotos.push(await compressImage(file)); }
+      catch (e) { toast("One photo could not be read"); }
+    }
+    if ($("f-photos")) $("f-photos").value = "";
+    updatePhotoStrip();
+  }
+  document.addEventListener("change", e => {
+    if (e.target.id === "f-photos") addPhotos(e.target.files);
+    if (e.target.dataset && e.target.dataset.feature) {
+      const f = e.target.dataset.feature;
+      ui.draftFeatures = e.target.checked
+        ? [...new Set([...ui.draftFeatures, f])]
+        : ui.draftFeatures.filter(x => x !== f);
+    }
+  });
+
+  // ----- Feature options (shown on the post form and listing page) -----
+  const FEATURES = {
+    "Essentials": ["Wi-Fi", "Parking", "Water tank", "Borehole", "Backup generator", "Solar power", "Security guard", "Gated compound"],
+    "Comfort": ["Air conditioning", "Furnished", "Kitchen", "Balcony", "Garden", "Swimming pool", "Gym", "Lift"],
+    "Short stay (Airbnb)": ["Breakfast included", "Hot water", "Smart TV", "Dedicated workspace", "Washing machine", "Self check-in"],
+    "House rules": ["Pets allowed", "Children welcome", "Smoking allowed"]
+  };
+
+  // ----- Floating dock (bottom navigation) -----
+  const ICON = {
+    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
+    compass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></svg>',
+    heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.3-8.6C1.1 8.3 3 5 6.4 5c2 0 3.4 1.1 4.1 2.2h1C12.2 6.1 13.6 5 15.6 5 19 5 20.9 8.3 21.3 11.4 19 15.6 12 20 12 20z"/></svg>',
+    person: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>'
+  };
+  function renderDock(page) {
+    const saved = me() ? me().favorites.length : 0;
+    const items = [
+      ["home", "#/home", "Home", ICON.home, 0],
+      ["explore", "#/explore", "Explore", ICON.compass, 0],
+      ["save", "#/save", "Saved", ICON.heart, saved],
+      ["account", "#/account", "Profile", ICON.person, 0]
+    ];
+    $("dock").innerHTML = items.map(([key, href, label, icon, count]) => `
+      <a href="${href}" class="${page === key ? "active" : ""}" aria-label="${label}" ${page === key ? 'aria-current="page"' : ""}>
+        <span class="dock-icon">${icon}${count ? `<span class="dock-badge">${count}</span>` : ""}</span>
+        <span class="dock-label">${label}</span>
+      </a>`).join("");
+  }
+
+  // ----- Home feed: every listing, with a sponsored card after every five -----
+  function adCardHTML(k) {
+    if (ui.hiddenAds.has(k)) return "";
+    const ad = ADS[(k - 1) % ADS.length];
+    return `
+      <article class="listing ad-card" style="animation-delay:120ms">
+        <div class="cover ad-cover">
+          <span class="tag">Sponsored</span>
+          <div class="ad-mark">${esc(ad.title)}</div>
+        </div>
+        <div class="listing-body">
+          <p class="muted">${esc(ad.text)}</p>
+        </div>
+        <button class="ad-x" data-action="hide-ad" data-id="${k}" aria-label="Hide ad">✕</button>
+      </article>`;
+  }
+  function homeFeedHTML() {
+    const list = [...db.listings].sort((a, b) => b.created - a.created);
+    let html = "";
+    list.forEach((l, i) => {
+      html += cardHTML(l, i);
+      if ((i + 1) % 5 === 0) html += adCardHTML((i + 1) / 5);
+    });
+    return html;
+  }
+
+  // ----- Home: search, location, promoted listings -----
+  function renderHome() {
+    const nearest = ui.userLoc
+      ? [...db.listings].sort((a, b) => km(ui.userLoc, a) - km(ui.userLoc, b)).slice(0, 4)
+      : [];
+    const promoted = db.listings.filter(isPromoted);
+    const recent = [...db.listings].sort((a, b) => b.created - a.created).slice(0, 4);
+    return `
+      <section class="home-hero">
+        <p class="eyebrow">Malawi property, clearly listed</p>
+        <h2 class="home-title">Find your next home in Malawi</h2>
+        <form class="home-search" id="home-search">
+          <input id="home-q" placeholder="Search by area, district or keyword" aria-label="Search properties">
+          <button type="submit" class="btn">Search</button>
+        </form>
+        <div class="home-actions">
+          <button class="btn btn-light" data-action="locate">${ui.userLoc ? "📍 Location is on" : "📍 Use my location"}</button>
+          <button class="btn btn-light" data-action="go" data-to="explore">Explore the map</button>
+        </div>
+      </section>
+      <section>
+        <h2 class="big">Promoted listings</h2>
+        ${promoted.length
+          ? `<div class="grid">${promoted.map((l, i) => cardHTML(l, i)).join("")}</div>`
+          : `<p class="muted">No promoted listings yet. Promote one from My Listings.</p>`}
+      </section>
+      ${nearest.length ? `
+        <section>
+          <h2 class="big">Near you</h2>
+          <div class="grid">${nearest.map((l, i) => cardHTML(l, i)).join("")}</div>
+        </section>` : ""}
+      <section>
+        <h2 class="big">All listings</h2>
+        <div class="grid">${homeFeedHTML()}</div>
+      </section>`;
+  }
+
+  // ----- Explore: map with every property, plus a list -----
+  let mapInstance = null, markerLayer = null;
+  function exploreListHTML(list) {
+    if (!list.length) return `<div class="empty">No properties match your search.</div>`;
+    const m = me();
+    return list.map(l => {
+      const fav = m ? m.favorites.includes(l.id) : false;
+      return `
+        <div class="h-item" data-action="open" data-id="${l.id}">
+          <div class="thumb">${coverSrc(l) ? `<img src="${coverSrc(l)}" alt="">` : ""}</div>
+          <div class="info">
+            ${isPromoted(l) ? '<div class="promo-label">⭐ Promoted</div>' : ""}
+            <div class="kind">${esc(l.category)} in ${esc(l.district)}</div>
+            <h4>${esc(l.title)}</h4>
+            <div class="price">${priceText(l)}</div>
+          </div>
+          <button class="fav ${fav ? "on" : ""}" data-action="fav" data-id="${l.id}" aria-label="Save property">${fav ? "♥" : "♡"}</button>
+        </div>`;
+    }).join("");
+  }
+  function renderExplore() {
+    const list = visibleListings();
+    return `
+      <div class="explore-split">
+        <div class="explore-map-wrap"><div id="map-canvas" class="map-canvas"></div></div>
+        <aside class="explore-side">
+          <div class="district-picker">${districtPicker()}</div>
+          <div class="list-meta">
+            <span id="count">${list.length} properties</span>
+            <select class="select" data-change="sort" aria-label="Sort properties">
+              <option value="newest" ${ui.filters.sort === "newest" ? "selected" : ""}>Last added</option>
+              <option value="nearest" ${ui.filters.sort === "nearest" ? "selected" : ""}>Nearest to me</option>
+              <option value="price-low" ${ui.filters.sort === "price-low" ? "selected" : ""}>Price: low to high</option>
+              <option value="price-high" ${ui.filters.sort === "price-high" ? "selected" : ""}>Price: high to low</option>
+            </select>
+          </div>
+          <div id="house-list">${exploreListHTML(list)}</div>
+        </aside>
+      </div>`;
+  }
+  function updateExplore() {
+    const list = visibleListings();
+    if ($("house-list")) $("house-list").innerHTML = exploreListHTML(list);
+    if ($("count")) $("count").textContent = `${list.length} properties`;
+    plotMarkers(list);
+  }
+  function mountMap(list) {
+    const el = $("map-canvas");
+    if (!el || typeof L === "undefined") return;
+    if (!mapInstance) {
+      mapInstance = L.map(el).setView([-13.5, 33.9], 6);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "&copy; OpenStreetMap" }).addTo(mapInstance);
+      markerLayer = L.layerGroup().addTo(mapInstance);
+      mapInstance.on("popupopen", e => {
+        const btn = e.popup.getElement().querySelector(".popup-btn");
+        if (btn) btn.addEventListener("click", () => act("open", btn));
+      });
+    }
+    plotMarkers(list);
+  }
+  function plotMarkers(list) {
+    if (!mapInstance) return;
+    markerLayer.clearLayers();
+    list.forEach(l => {
+      L.marker([l.lat, l.lng]).bindPopup(
+        `<strong>${esc(l.title)}</strong><br>${priceText(l)}<br>
+         <button class="popup-btn" data-id="${l.id}">View property</button>`
+      ).addTo(markerLayer);
+    });
+    if (ui.userLoc) {
+      L.circleMarker([ui.userLoc.lat, ui.userLoc.lng], { radius: 8, color: "#1f66ff", fillColor: "#1f66ff", fillOpacity: 0.9 }).addTo(markerLayer);
+    }
+    if (list.length) mapInstance.fitBounds(L.latLngBounds(list.map(l => [l.lat, l.lng])).pad(0.2), { maxZoom: 12 });
+    else if (ui.userLoc) mapInstance.setView([ui.userLoc.lat, ui.userLoc.lng], 12);
+  }
+
+  // ----- Pin the exact property on a map in the post form -----
+  let pinMap = null, pinMarker = null;
+  function pinStatusText() {
+    return ui.draftPin
+      ? `Pinned at ${ui.draftPin.lat.toFixed(5)}, ${ui.draftPin.lng.toFixed(5)}`
+      : "No pin yet. The district centre will be used.";
+  }
+  function setPinStatus() {
+    if ($("pin-status")) $("pin-status").textContent = pinStatusText();
+  }
+  function placePin(lat, lng) {
+    ui.draftPin = { lat, lng };
+    if (!pinMap) return setPinStatus();
+    if (!pinMarker) {
+      pinMarker = L.marker([lat, lng], { draggable: true }).addTo(pinMap);
+      pinMarker.on("dragend", () => {
+        const pos = pinMarker.getLatLng();
+        ui.draftPin = { lat: pos.lat, lng: pos.lng };
+        setPinStatus();
+      });
+    } else {
+      pinMarker.setLatLng([lat, lng]);
+    }
+    setPinStatus();
+  }
+  function mountPinMap() {
+    const el = $("pin-map");
+    if (!el || typeof L === "undefined") return;
+    const start = ui.draftPin || { lat: -13.5, lng: 33.9 };
+    pinMap = L.map(el).setView([start.lat, start.lng], ui.draftPin ? 15 : 6);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "&copy; OpenStreetMap" }).addTo(pinMap);
+    pinMarker = null;
+    if (ui.draftPin) placePin(ui.draftPin.lat, ui.draftPin.lng);
+    pinMap.on("click", e => placePin(e.latlng.lat, e.latlng.lng));
+  }
+  function usePinLocation() {
+    if (!navigator.geolocation) return toast("Location is not supported on this browser");
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        ui.userLoc = { lat, lng };
+        placePin(lat, lng);
+        if (pinMap) pinMap.setView([lat, lng], 16);
+        toast("📍 Pin placed at your location");
+      },
+      () => toast("Location was not shared. Click the map to place your pin."),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+  function clearPin() {
+    ui.draftPin = null;
+    if (pinMarker && pinMap) pinMap.removeLayer(pinMarker);
+    pinMarker = null;
+    setPinStatus();
+  }
+
+  // Home search opens Explore with the keyword applied
+  document.addEventListener("submit", e => {
+    if (e.target.id !== "home-search") return;
+    e.preventDefault();
+    ui.filters.search = $("home-q").value.trim();
+    go("#/explore");
+  });
+
+  function renderListing(id) {
+    const l = db.listings.find(x => x.id === id);
+    if (!l) return notFound();
+    const owner = db.users.find(u => u.id === l.owner);
+    const m = me();
+    const mine = m && m.id === l.owner;
+    const saved = m && m.favorites.includes(l.id);
+    const q = `${l.lat},${l.lng}`;
+    return `
+      <div class="inline" style="margin-bottom:18px">
+        <button class="btn btn-light btn-small" data-action="go" data-to="explore">← Back to Explore</button>
+        ${isPromoted(l) ? `<span class="pill pill-ok">⭐ Promoted</span>` : ""}
+      </div>
+      <div class="detail">
+        <div>
+          <div class="gallery">
+            ${l.image ? `<img src="${esc(l.image)}" alt="${esc(l.title)}">` : `<div class="emoji">${CATEGORY_ICON[l.category]}</div>`}
+          </div>
+          ${statsHTML(l)}
+          <h3 class="sec-title">About this listing</h3>
+          <p class="muted" style="font-size:14px;line-height:1.7">${esc(l.description)}</p>
+          ${(l.features || l.amenities || []).length ? `<h2>Features</h2><div class="inline">${(l.features || l.amenities || []).map(f => `<span class="chip">${esc(f)}</span>`).join("")}</div>` : ""}
+          <h3 class="sec-title" style="margin-top:24px">📍 Location</h3>
+          <iframe class="map" title="Location map" loading="lazy" src="https://www.google.com/maps?q=${q}&z=13&output=embed"></iframe>
+          <p style="margin-top:8px"><a class="muted" href="https://www.google.com/maps?q=${q}" target="_blank" rel="noopener">Open in Google Maps ↗</a></p>
+        </div>
+        <aside class="card" style="align-self:start;position:sticky;top:20px">
+          <span class="pill">${l.purpose === "Rent" ? "For rent" : "For sale"} · ${esc(l.category)}</span>
+          <h2 style="margin:12px 0 4px">${esc(l.title)}</h2>
+          <p class="muted">${esc(l.district)}, Malawi</p>
+          <div class="big-price">${priceText(l)}</div>
+          <p class="muted">Listed by ${esc(owner ? owner.name : "Member")} · ${owner ? owner.accountType : ""}</p>
+          <div class="stack" style="margin-top:18px">
+            ${mine
+              ? `<button class="btn btn-brand btn-full" data-action="promote" data-id="${l.id}">⭐ Promote this listing</button>
+                 <button class="btn btn-light btn-full" data-action="go" data-to="post/${l.id}">✏️ Edit listing</button>`
+              : `<button class="btn btn-full" data-action="message" data-id="${l.id}">💬 Message seller</button>`}
+            <button class="btn btn-light btn-full" data-action="fav" data-id="${l.id}">${saved ? "♥ Saved" : "♡ Save listing"}</button>
+          </div>
+        </aside>
+      </div>`;
+  }
+
+  function renderPost(id) {
+    const existing = id ? db.listings.find(l => l.id === id) : null;
+    if (id && (!existing || existing.owner !== me().id)) {
+      return `<div class="empty"><p>You can only edit your own listings.</p></div>`;
+    }
+    const key = id ? String(id) : "new";
+    if (ui.draftFor !== key) {
+      ui.draftFor = key;
+      ui.draftPhotos = existing ? [...(existing.photos || [])] : [];
+      ui.draftFeatures = existing ? [...(existing.features || [])] : [];
+      ui.draftPin = existing ? { lat: existing.lat, lng: existing.lng } : null;
+    }
+    const v = existing || { title: "", purpose: "Rent", category: "House", district: "Lilongwe", price: "", beds: "", baths: "", area: "", image: "", description: "" };
+    const opt = (arr, cur) => arr.map(x => `<option ${x === cur ? "selected" : ""}>${x}</option>`).join("");
+    return `
+      <div class="card" style="max-width:740px">
+        <h3 class="sec-title">${existing ? "Edit listing" : "Create a listing"}</h3>
+        <p class="muted" style="margin-bottom:18px">Listing is free. You can promote it later to appear first.</p>
+        <div class="field"><label>Title</label><input class="input" id="f-title" value="${esc(v.title)}" placeholder="e.g. Modern 3-bed house in Area 25"></div>
+        <div class="row2">
+          <div class="field"><label>I want to</label><select class="select" id="f-purpose">${opt(["Rent", "Sale"], v.purpose)}</select></div>
+          <div class="field"><label>Property type</label><select class="select" id="f-category">${opt(["House", "Apartment", "Airbnb", "Land"], v.category)}</select></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Location (district)</label><select class="select" id="f-district">${opt(Object.keys(DISTRICTS), v.district)}</select></div>
+          <div class="field"><label>Price (MWK)</label><input class="input" id="f-price" type="number" min="0" value="${v.price}"></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Bedrooms</label><input class="input" id="f-beds" type="number" min="0" value="${v.beds}"></div>
+          <div class="field"><label>Bathrooms</label><input class="input" id="f-baths" type="number" min="0" value="${v.baths}"></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Size (m²)</label><input class="input" id="f-area" type="number" min="0" value="${v.area}"></div>
+          
+        </div>
+        <div class="field">
+          <label>Photos (up to ${MAX_PHOTOS}, optional)</label>
+          <input class="input" type="file" id="f-photos" accept="image/*" multiple ${ui.draftPhotos.length >= MAX_PHOTOS ? "disabled" : ""}>
+          <div class="photo-strip" id="photo-strip">${photoStripHTML()}</div>
+        </div>
+        <div class="field">
+          <label>Features (tick everything that applies)</label>
+          ${Object.entries(FEATURES).map(([group, items]) => `
+            <div class="feature-group">
+              <h4>${group}</h4>
+              <div class="feature-list">${items.map(f => `
+                <label><input type="checkbox" data-feature="${esc(f)}" ${ui.draftFeatures.includes(f) ? "checked" : ""}> ${esc(f)}</label>`).join("")}
+              </div>
+            </div>`).join("")}
+        </div>
+        <div class="field">
+          <label>Pin the property on the map</label>
+          <div class="inline">
+            <button type="button" class="btn btn-light btn-small" data-action="use-location-pin">📍 Use my current location</button>
+            <button type="button" class="btn btn-light btn-small" data-action="clear-pin">Clear pin</button>
+          </div>
+          <div id="pin-map" class="pin-map"></div>
+          <p class="muted" id="pin-status">${pinStatusText()}</p>
+          <p class="muted">Click the map or drag the pin to set the exact spot. Without a pin, the district centre is used.</p>
+        </div>
+        <div class="field"><label>Description</label><textarea class="textarea" id="f-desc">${esc(v.description)}</textarea></div>
+        <div class="inline">
+          <button class="btn" data-action="save-listing" data-id="${existing ? existing.id : ""}">${existing ? "Save changes" : "Publish listing"}</button>
+          <button class="btn btn-light" data-action="go" data-to="mine">Cancel</button>
+        </div>
+      </div>`;
+  }
+
+  function renderMine() {
+    const mineList = db.listings.filter(l => l.owner === me().id);
+    if (!mineList.length) {
+      return `<div class="empty"><div class="big">🏡</div><p>You have not posted anything yet.</p><br><button class="btn" data-action="go" data-to="post">Post your first listing</button></div>`;
+    }
+    return `<div class="stack">${mineList.map(l => `
+      <div class="card" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        <div class="thumb-sm">${l.image ? `<img src="${esc(l.image)}" alt="">` : CATEGORY_ICON[l.category]}</div>
+        <div style="flex:1;min-width:200px">
+          <strong>${esc(l.title)}</strong> ${isPromoted(l) ? `<span class="pill pill-ok">⭐ Promoted</span>` : ""}
+          <div class="muted">${esc(l.category)} · ${esc(l.district)} · ${priceText(l)}</div>
+          <div class="muted">${isPromoted(l) ? "Promoted until " + new Date(l.promoted).toLocaleDateString() : "Not promoted"}</div>
+        </div>
+        <div class="inline">
+          <button class="btn btn-light btn-small" data-action="open" data-id="${l.id}">View</button>
+          <button class="btn btn-brand btn-small" data-action="promote" data-id="${l.id}">⭐ Promote</button>
+          <button class="btn btn-light btn-small" data-action="go" data-to="post/${l.id}">Edit</button>
+          <button class="btn btn-danger btn-small" data-action="delete" data-id="${l.id}">Delete</button>
+        </div>
+      </div>`).join("")}</div>`;
+  }
+
+  function renderFavorites() {
+    const favs = db.listings.filter(l => me().favorites.includes(l.id));
+    if (!favs.length) {
+      return `<div class="empty"><div class="big">♡</div><p>Tap the heart on any listing to save it here.</p><br><button class="btn" data-action="go" data-to="explore">Browse listings</button></div>`;
+    }
+    return `<div class="grid">${favs.map((l, i) => cardHTML(l, i)).join("")}</div>`;
+  }
+
+  function myConvos(id) {
+    const map = {};
+    db.messages.forEach(x => {
+      if (x.from !== id && x.to !== id) return;
+      const other = x.from === id ? x.to : x.from;
+      const key = x.listingId + ":" + other;
+      if (!map[key] || x.time > map[key].last.time) map[key] = { listingId: x.listingId, otherId: other, last: x };
+    });
+    return Object.values(map).sort((a, b) => b.last.time - a.last.time);
+  }
+
+  function renderMessages() {
+    const m = me();
+    const list = myConvos(m.id);
+    const chat = ui.activeChat;
+    if (chat && !list.some(c => c.listingId === chat.listingId && c.otherId === chat.otherId)) {
+      list.unshift({ listingId: chat.listingId, otherId: chat.otherId, last: null });
+    }
+    if (!list.length) {
+      return `<div class="empty"><div class="big">💬</div><p>No conversations yet. Open a listing and press <strong>Message seller</strong> to start chatting.</p><br><button class="btn" data-action="go" data-to="explore">Browse listings</button></div>`;
+    }
+    const active = (chat && list.find(c => c.listingId === chat.listingId && c.otherId === chat.otherId)) || list[0];
+    ui.activeChat = { listingId: active.listingId, otherId: active.otherId };
+
+    const l = db.listings.find(x => x.id === active.listingId);
+    const other = db.users.find(u => u.id === active.otherId);
+    const thread = db.messages.filter(x =>
+      x.listingId === active.listingId && [x.from, x.to].includes(m.id) && [x.from, x.to].includes(active.otherId));
+
+    const convos = list.map(c => {
+      const lst = db.listings.find(x => x.id === c.listingId);
+      const who = db.users.find(u => u.id === c.otherId);
+      const isActive = c.listingId === active.listingId && c.otherId === active.otherId;
+      return `
+        <div class="convo ${isActive ? "active" : ""}" data-action="open-chat" data-listing="${c.listingId}" data-other="${c.otherId}">
+          <strong>${esc(who ? who.name : "Member")}</strong>
+          <span>${esc(lst ? lst.title : "Listing removed")}</span>
+          <span style="margin-top:4px">${c.last ? esc(c.last.text).slice(0, 40) : "New conversation"}</span>
+        </div>`;
+    }).join("");
+
+    return `
+      <div class="chat">
+        <div class="convos">${convos}</div>
+        <div class="thread">
+          <div class="inline" style="padding:14px 18px;border-bottom:1px solid var(--border);justify-content:space-between">
+            <div>
+              <strong>${esc(other ? other.name : "Member")}</strong>
+              <div class="muted">About: ${esc(l ? l.title : "Listing removed")}</div>
+            </div>
+            ${l ? `<button class="btn btn-light btn-small" data-action="open" data-id="${l.id}">View listing</button>` : ""}
+          </div>
+          <div class="msgs" id="msgs">
+            ${thread.map(x => `<div class="bubble ${x.from === m.id ? "me" : "them"}">${esc(x.text)}</div>`).join("") ||
+              `<div class="muted" style="margin:auto;text-align:center">No messages yet. Say hello 👋</div>`}
+          </div>
+          <div class="inline" style="padding:0 14px 10px">
+            ${QUICK.map(q => `<button class="chip" data-action="quick-send" data-text="${esc(q)}">${esc(q)}</button>`).join("")}
+          </div>
+          <div class="compose">
+            <input class="input" id="chat-input" placeholder="Write a message…">
+            <button class="btn" data-action="send">Send</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderFaq() {
+    return `
+      <div class="hero">
+        <h2>How can we help?</h2>
+        <p>Browse the most common questions below. Still stuck? Visit Customer support.</p>
+      </div>
+      <div class="card" style="max-width:820px">
+        ${FAQS.map(([q, a], i) => `
+          <div class="faq-item">
+            <button class="faq-q" data-action="faq" data-id="${i}">${q}<span class="plus">+</span></button>
+            <div class="faq-a"><div><p>${a}</p></div></div>
+          </div>`).join("")}
+      </div>`;
+  }
+
+  function renderSupport() {
+    const m = me();
+    const mine = m ? db.tickets.filter(t => t.userId === m.id) : [];
+    return `
+      <div class="hero">
+        <h2>We are here to help</h2>
+        <p>Talk to a real person about a listing, a payment or your account. Hours: ${SUPPORT.hours}.</p>
+      </div>
+      <div class="contact-grid">
+        <a class="card contact-card" href="tel:${SUPPORT.phone.replace(/\s/g, "")}">
+          <div class="ico">📞</div><strong>Call us</strong><p class="muted">${SUPPORT.phone}</p>
+        </a>
+        <a class="card contact-card" href="https://wa.me/${SUPPORT.whatsapp}" target="_blank" rel="noopener">
+          <div class="ico">💬</div><strong>WhatsApp</strong><p class="muted">Quick replies</p>
+        </a>
+        <a class="card contact-card" href="mailto:${SUPPORT.email}">
+          <div class="ico">✉️</div><strong>Email</strong><p class="muted">${SUPPORT.email}</p>
+        </a>
+      </div>
+      <div class="card" style="max-width:660px">
+        <h3 class="sec-title">Send us a message</h3>
+        <div class="row2">
+          <div class="field"><label>Your name</label><input class="input" id="t-name" value="${esc(m ? m.name : "")}"></div>
+          <div class="field"><label>Email</label><input class="input" id="t-email" value="${esc(m ? m.email : "")}"></div>
+        </div>
+        <div class="field"><label>Topic</label>
+          <select class="select" id="t-subject">
+            <option>Listing help</option>
+            <option>Payments and promotion</option>
+            <option>Account problem</option>
+            <option>Report a listing</option>
+            <option>Something else</option>
+          </select>
+        </div>
+        <div class="field"><label>Message</label><textarea class="textarea" id="t-msg" placeholder="Tell us what happened…"></textarea></div>
+        <button class="btn" data-action="support-submit">Send message</button>
+      </div>
+      ${mine.length ? `
+        <h3 class="sec-title" style="margin-top:26px">Your tickets</h3>
+        <div class="stack" style="max-width:660px">
+          ${mine.map(t => `
+            <div class="card">
+              <strong>${esc(t.subject)}</strong> <span class="pill pill-wait">${t.status}</span>
+              <p class="muted" style="margin-top:8px">${esc(t.message)}</p>
+            </div>`).join("")}
+        </div>` : ""}`;
+  }
+
+  function renderSettings() {
+    const m = me();
+    const themeCard = `
+      <div class="card" style="margin-bottom:18px">
+        <h3 class="sec-title">Appearance</h3>
+        <p class="muted" style="margin-bottom:14px">Choose how Zonse Homes looks on this device.</p>
+        <div class="inline">
+          <button class="chip ${ui.theme === "light" ? "active" : ""}" data-action="set-theme" data-value="light">☀️ Light</button>
+          <button class="chip ${ui.theme === "dark" ? "active" : ""}" data-action="set-theme" data-value="dark">🌙 Dark</button>
+        </div>
+      </div>`;
+    const profile = m ? `
+      <div class="card">
+        <h3 class="sec-title">Profile</h3>
+        <div class="field"><label>Full name</label><input class="input" id="p-name" value="${esc(m.name)}"></div>
+        <div class="field"><label>Phone</label><input class="input" id="p-phone" value="${esc(m.phone || "")}"></div>
+        <div class="inline">
+          <button class="btn" data-action="save-profile">Save changes</button>
+          <button class="btn btn-danger" data-action="logout">Log out</button>
+        </div>
+      </div>` : `
+      <div class="card">
+        <p class="muted" style="margin-bottom:14px">Log in to edit your profile.</p>
+        <button class="btn" data-action="go" data-to="account">Log in or sign up</button>
+      </div>`;
+    const notifyCard = m ? `
+      <div class="card" style="margin-top:18px">
+        <h3 class="sec-title">Notifications</h3>
+        <p class="muted" style="margin-bottom:14px">Get told when someone messages you about your listings.</p>
+        <div class="inline">
+          <button class="btn btn-small ${m.notifyMessages !== false ? "" : "btn-light"}" data-action="toggle-notify">${m.notifyMessages !== false ? "On" : "Off"}</button>
+          <button class="btn btn-light btn-small" data-action="browser-alerts">Enable browser alerts</button>
+        </div>
+      </div>` : "";
+    return `<div style="max-width:640px">${themeCard}${profile}${notifyCard}</div>`;
+  }
+
+  function renderAccount() {
+    const m = me();
+    if (m) {
+      const count = db.listings.filter(l => l.owner === m.id).length;
+      return `
+        <div class="card" style="max-width:560px">
+          <div class="inline" style="margin-bottom:18px">
+            <div class="avatar">${esc(initials(m.name))}</div>
+            <div><h3>${esc(m.name)}</h3><p class="muted">${esc(m.email)} · ${m.accountType}</p></div>
+          </div>
+          <div class="stats">
+            <div>Listings<strong>${count}</strong></div>
+            <div>Favourites<strong>${m.favorites.length}</strong></div>
+            <div>Phone<strong>${esc(m.phone || "Not added")}</strong></div>
+          </div>
+          <div class="inline" style="margin-top:12px">
+            <button class="btn" data-action="go" data-to="post">+ New listing</button>
+            <button class="btn btn-danger" data-action="logout">Log out</button>
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="card" style="max-width:520px">
+        <div class="inline" style="margin-bottom:18px">
+          <button class="chip ${ui.authTab === "login" ? "active" : ""}" data-action="auth-tab" data-value="login">Log in</button>
+          <button class="chip ${ui.authTab === "signup" ? "active" : ""}" data-action="auth-tab" data-value="signup">Create account</button>
+        </div>
+        ${ui.authTab === "login" ? `
+          <div class="field"><label>Email</label><input class="input" id="a-email" type="email"></div>
+          <div class="field"><label>Password</label><input class="input" id="a-pass" type="password"></div>
+          <button class="btn btn-full" data-action="login">Log in</button>
+          <p class="muted" style="margin-top:12px">Demo account: agent@demo.mw / demo123</p>
+        ` : `
+          <div class="field"><label>Full name</label><input class="input" id="s-name"></div>
+          <div class="row2">
+            <div class="field"><label>Email</label><input class="input" id="s-email" type="email"></div>
+            <div class="field"><label>Phone</label><input class="input" id="s-phone" placeholder="+265..."></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label>I am a</label>
+              <select class="select" id="s-type"><option>Individual</option><option>Company</option></select>
+            </div>
+            <div class="field"><label>Password (min 6 characters)</label><input class="input" id="s-pass" type="password"></div>
+          </div>
+          <button class="btn btn-full" data-action="signup">Create free account</button>
+        `}
+      </div>`;
+  }
+
+  function renderAccountBox() {
+    const m = me();
+    $("account-box").innerHTML = `<strong>Promote your listings</strong>
+      <span>Listing is free. Get seen first with a promoted listing.</span>
+      <button class="btn btn-small btn-full" style="margin-top:10px" data-action="go" data-to="${m ? "mine" : "account"}">${m ? "My listings" : "Log in / Sign up"}</button>`;
+  }
+
+    function renderTopbar(page) {
+    const [t, s] = TITLES[page] || ["Not found", ""];
+    const m = me();
+    const title = page === "home" ? `${greeting()}${m ? ", " + esc(m.name.split(" ")[0]) : ""}` : t;
+    $("topbar").innerHTML = `
+      <div><h1>${title}</h1><p>${s}</p></div>
+      <div class="top-actions">
+        ${page === "explore" ? `<input class="search" id="search" placeholder="Search houses, land, Airbnbs…" value="${esc(ui.filters.search)}">` : ""}
+        ${notifyBell()}
+        <button class="icon-btn" data-action="toggle-theme" title="Switch light and dark">${ui.theme === "dark" ? "☀️" : "🌙"}</button>
+      </div>`;
+  }
+
+  function notFound() {
+    return `<div class="empty"><div class="big">🧭</div><p>We could not find that page.</p><br><button class="btn" data-action="go" data-to="explore">Back to Explore</button></div>`;
+  }
+
+  const VIEWS = {
+    home: renderHome,
+    explore: renderExplore,
+    save: renderFavorites,
+    listing: renderListing,
+    post: renderPost,
+    mine: renderMine,
+    messages: renderMessages,
+    favorites: renderFavorites,
+    faq: renderFaq,
+    support: renderSupport,
+    settings: renderSettings,
+    account: renderAccount
+  };
+
+  // ================= ROUTING =================
+  let enterTimer = null;
+  function refresh() {
+    const { page, id } = currentRoute();
+    renderTopbar(page);
+    if (mapInstance) { mapInstance.remove(); mapInstance = null; markerLayer = null; }
+    if (pinMap) { pinMap.remove(); pinMap = null; pinMarker = null; }
+    $("page").classList.toggle("flush", page === "explore");
+    $("page").innerHTML = VIEWS[page] ? VIEWS[page](id) : notFound();
+    if (page === "explore") mountMap(visibleListings());
+    if (page === "post") mountPinMap();
+    renderDock(page);
+    ui.popId = null;
+    renderAccountBox();
+    const ms = $("msgs");
+    if (ms) ms.scrollTop = ms.scrollHeight;
+  }
+  function route() {
+    const { page } = currentRoute();
+    if (PROTECTED.includes(page) && !me()) {
+      ui.returnTo = location.hash || "#/explore";
+      toast("Please log in to continue");
+      return go("#/account");
+    }
+    document.querySelectorAll(".nav a").forEach(a => a.classList.toggle("active", a.dataset.page === page));
+    ui.draftFor = null;
+    const p = $("page");
+    p.classList.remove("enter");
+    void p.offsetWidth;
+    p.classList.add("enter");
+    clearTimeout(enterTimer);
+    enterTimer = setTimeout(() => p.classList.remove("enter"), 1000);
+    refresh();
+  }
+
+  // ================= ACTIONS =================
+  function toggleFav(id) {
+    const m = me();
+    if (!m) {
+      ui.returnTo = location.hash;
+      toast("Log in to save listings");
+      return go("#/account");
+    }
+    m.favorites = m.favorites.includes(id) ? m.favorites.filter(x => x !== id) : [...m.favorites, id];
+    ui.popId = id;
+    save();
+    refresh();
+  }
+  function startChat(id) {
+    const m = me();
+    const l = db.listings.find(x => x.id === id);
+    if (!m) {
+      ui.returnTo = "#/listing/" + id;
+      toast("Log in to message the seller");
+      return go("#/account");
+    }
+    if (l.owner === m.id) return toast("This is your own listing");
+    ui.activeChat = { listingId: id, otherId: l.owner };
+    go("#/messages");
+  }
+  function sendMessage(text) {
+    const m = me(), chat = ui.activeChat;
+    if (!m || !chat || !text) return;
+    db.messages.push({ id: uid(), listingId: chat.listingId, from: m.id, to: chat.otherId, text, time: Date.now() });
+    const recipient = db.users.find(u => u.id === chat.otherId);
+    const listing = db.listings.find(x => x.id === chat.listingId);
+    if (recipient && recipient.notifyMessages !== false) {
+      notify(recipient.id, `${m.name} messaged you about "${listing ? listing.title : "a listing"}"`, chat.listingId, m.id);
+    }
+    save();
+    if (chat.otherId === "u-demo") {
+      setTimeout(() => {
+        db.messages.push({ id: uid(), listingId: chat.listingId, from: chat.otherId, to: m.id, text: "Thanks for your message! I will reply shortly 😊", time: Date.now() });
+        notify(m.id, `${(db.users.find(u => u.id === chat.otherId) || {}).name || "Seller"} replied about "${(db.listings.find(x => x.id === chat.listingId) || {}).title || "your enquiry"}"`, chat.listingId, chat.otherId);
+        if (currentRoute().page === "messages") refresh();
+      }, 1200);
+    }
+    refresh();
+    const ci = $("chat-input");
+    if (ci) ci.focus();
+  }
+  function openPromote(id, plan = 0) {
+    const l = db.listings.find(x => x.id === id);
+    if (!l) return;
+    if (l.owner !== me().id) return toast("Only the owner can promote this listing");
+    openModal(`
+      <h2>Promote "${esc(l.title)}"</h2>
+      <p>Promoted listings appear first in search, with a ⭐ badge. Pick a plan:</p>
+      ${PLANS.map((p, i) => `
+        <div class="plan ${i === plan ? "sel" : ""}" data-action="pick-plan" data-id="${id}" data-plan="${i}">
+          <div><strong>${p.days} days</strong><div class="muted">Top of search for ${p.days} days</div></div>
+          <strong>${money(p.price)}</strong>
+        </div>`).join("")}
+      <p style="font-size:12px;margin-top:10px">Demo mode: payment is simulated. Live payments will use Airtel Money or TNM Mpamba.</p>
+      <div class="actions">
+        <button class="btn btn-light" data-action="close-modal">Cancel</button>
+        <button class="btn btn-brand" data-action="pay" data-id="${id}" data-plan="${plan}">Pay ${money(PLANS[plan].price)}</button>
+      </div>`);
+  }
+  function pay(id, planIdx) {
+    const l = db.listings.find(x => x.id === id);
+    const p = PLANS[planIdx];
+    l.promoted = Math.max(Date.now(), l.promoted || 0) + p.days * 864e5;
+    save();
+    closeModal();
+    toast(`⭐ Promoted for ${p.days} days`);
+    refresh();
+  }
+  function askDelete(id) {
+    openModal(`
+      <h2>Delete this listing?</h2>
+      <p>This cannot be undone.</p>
+      <div class="actions">
+        <button class="btn btn-light" data-action="close-modal">Cancel</button>
+        <button class="btn btn-danger" data-action="confirm-delete" data-id="${id}">Delete</button>
+      </div>`);
+  }
+  function saveListing(el) {
+    const v = k => $(k).value.trim();
+    const title = v("f-title"), price = Number(v("f-price")), description = v("f-desc"), district = v("f-district");
+    if (!title || !price || !description) return toast("Please fill in title, price and description");
+    const c = DISTRICTS[district];
+    const pin = ui.draftPin;
+    const data = {
+      title, purpose: v("f-purpose"), category: v("f-category"), district,
+      lat: pin ? pin.lat : c[0], lng: pin ? pin.lng : c[1], price,
+      beds: Number(v("f-beds")) || 0, baths: Number(v("f-baths")) || 0, area: Number(v("f-area")) || 0,
+      photos: [...ui.draftPhotos], features: [...ui.draftFeatures], description
+    };
+    if (el.dataset.id) {
+      Object.assign(db.listings.find(l => l.id === Number(el.dataset.id)), data);
+      toast("Listing updated");
+    } else {
+      db.listings.unshift({ id: uid(), owner: me().id, promoted: 0, created: Date.now(), ...data });
+      toast("Listing published 🎉");
+    }
+    save();
+    go("#/mine");
+  }
+  function login() {
+    const email = $("a-email").value.trim().toLowerCase(), pass = $("a-pass").value;
+    const u = db.users.find(x => x.email === email && x.password === pass);
+    if (!u) return toast("Wrong email or password");
+    setSession(u.id);
+    toast(`Welcome back, ${u.name.split(" ")[0]} 👋`);
+    const to = ui.returnTo || "#/explore";
+    ui.returnTo = null;
+    go(to);
+  }
+  function signup() {
+    const name = $("s-name").value.trim();
+    const email = $("s-email").value.trim().toLowerCase();
+    const phone = $("s-phone").value.trim();
+    const pass = $("s-pass").value;
+    const type = $("s-type").value;
+    if (!name || !email.includes("@")) return toast("Enter your name and a valid email");
+    if (pass.length < 6) return toast("Password must be at least 6 characters");
+    if (db.users.some(u => u.email === email)) return toast("An account with this email already exists");
+    const u = { id: "u" + uid(), name, email, phone, password: pass, accountType: type, favorites: [] };
+    db.users.push(u);
+    save();
+    setSession(u.id);
+    toast(`Welcome to Zonse Homes, ${name.split(" ")[0]}! 🎉`);
+    const to = ui.returnTo || "#/explore";
+    ui.returnTo = null;
+    go(to);
+  }
+  function sendTicket() {
+    const name = $("t-name").value.trim(), email = $("t-email").value.trim();
+    const message = $("t-msg").value.trim(), subject = $("t-subject").value;
+    if (!name || !email || !message) return toast("Please fill in your name, email and message");
+    db.tickets.unshift({ id: uid(), userId: me() ? me().id : null, name, email, subject, message, status: "Open", created: Date.now() });
+    save();
+    toast("Message sent. We reply within 24 hours 💚");
+    refresh();
+  }
+  function saveProfile() {
+    const name = $("p-name").value.trim();
+    if (!name) return toast("Name cannot be empty");
+    me().name = name;
+    me().phone = $("p-phone").value.trim();
+    save();
+    toast("Profile saved");
+    refresh();
+  }
+
+  function act(action, el) {
+    const id = el && el.dataset.id ? Number(el.dataset.id) : null;
+    switch (action) {
+      case "toggle-theme": return setTheme(ui.theme === "dark" ? "light" : "dark");
+      case "set-theme": return setTheme(el.dataset.value);
+      case "go": return go("#/" + el.dataset.to);
+      case "open": return go("#/listing/" + id);
+      case "locate": return locate();
+      case "filter": ui.filters[el.dataset.key] = el.dataset.value; return refresh();
+      case "district": ui.filters.district = el.dataset.value; ui.districtOpen = false; return refresh();
+      case "remove-photo": ui.draftPhotos.splice(id, 1); return updatePhotoStrip();
+      case "toggle-menu": return document.body.classList.toggle("menu-open");
+      case "use-location-pin": return usePinLocation();
+      case "clear-pin": return clearPin();
+      case "toggle-districts": ui.districtOpen = !ui.districtOpen; return refresh();
+      case "toggle-notify-panel": ui.notifyOpen = !ui.notifyOpen; return refresh();
+      case "mark-read": myNotifications().forEach(n => n.read = true); save(); return refresh();
+      case "open-notification": return openNotification(id);
+      case "toggle-notify": me().notifyMessages = me().notifyMessages === false; save(); return refresh();
+      case "browser-alerts": return enableBrowserAlerts();
+      case "select": ui.selectedId = id; return refresh();
+      case "tour": case "book": return startChat(id);
+      case "fav": return toggleFav(id);
+      case "hide-ad": ui.hiddenAds.add(id); return el.closest(".ad-line, .ad-card").remove();
+      case "ad-click": return toast("Thanks for checking this out! Ads help keep Zonse Homes free.");
+      case "message": return startChat(id);
+      case "open-chat": ui.activeChat = { listingId: Number(el.dataset.listing), otherId: el.dataset.other }; return refresh();
+      case "send": { const input = $("chat-input"); return sendMessage(input ? input.value.trim() : ""); }
+      case "quick-send": return sendMessage(el.dataset.text);
+      case "promote": return openPromote(id, 0);
+      case "pick-plan": return openPromote(id, Number(el.dataset.plan));
+      case "pay": return pay(id, Number(el.dataset.plan));
+      case "delete": return askDelete(id);
+      case "confirm-delete":
+        db.listings = db.listings.filter(l => l.id !== id);
+        save(); closeModal(); toast("Listing deleted");
+        return refresh();
+      case "close-modal": return closeModal();
+      case "save-listing": return saveListing(el);
+      case "login": return login();
+      case "signup": return signup();
+      case "logout": setSession(null); toast("You have logged out"); return go("#/explore");
+      case "auth-tab": ui.authTab = el.dataset.value; return refresh();
+      case "faq": return el.closest(".faq-item").classList.toggle("open");
+      case "support-submit": return sendTicket();
+      case "save-profile": return saveProfile();
+    }
+  }
+
+  // ================= EVENTS =================
+  document.addEventListener("click", e => {
+    if (e.target.id === "modal") return closeModal();
+    if (e.target.id === "menu-scrim" || e.target.closest(".sidebar a")) return document.body.classList.remove("menu-open");
+    const el = e.target.closest("[data-action]");
+    if (el) act(el.dataset.action, el);
+  });
+  document.addEventListener("input", e => {
+    if (e.target.id !== "search") return;
+    ui.filters.search = e.target.value;
+    updateExplore();
+  });
+  document.addEventListener("change", e => {
+    const key = e.target.dataset.change;
+    if (key === "district") { ui.filters.district = e.target.value; return refresh(); }
+    if (key === "sort") {
+      ui.filters.sort = e.target.value;
+      if (e.target.value === "nearest" && !ui.userLoc) return locate();
+      return refresh();
+    }
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") closeModal();
+    if (e.key === "Enter" && e.target.id === "chat-input") sendMessage(e.target.value.trim());
+  });
+
+  // ================= START =================
+  document.body.classList.toggle("dark", ui.theme === "dark");
+  window.addEventListener("hashchange", route);
+  if (!location.hash) location.hash = "#/home";
+  else route();
+</script>
+</body>
+</html>
