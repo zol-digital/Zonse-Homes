@@ -1,20 +1,19 @@
 import os
-from pydantic_settings import BaseSettings
 
-class Settings(BaseSettings):
-    PROJECT_NAME: str = "Zonse Homes Backend"
-    API_V1_STR: str = "/api/v1"
-    POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER", "localhost")
-    POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
-    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "postgres")
-    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "zonse_homes")
-    POSTGRES_PORT: str = os.getenv("POSTGRES_PORT", "5432")
-    
-    @property
-    def SQLALCHEMY_DATABASE_URI(self) -> str:
-        return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
-    class Config:
-        case_sensitive = True
+class Settings:
+    def __init__(self):
+        self.PROJECT_NAME = os.getenv("PROJECT_NAME", "Zonse Homes Backend")
+        self.API_V1_STR = os.getenv("API_V1_STR", "/api/v1")
+        self.POSTGRES_SERVER = os.getenv("POSTGRES_SERVER", "localhost")
+        self.POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
+        self.POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
+        self.POSTGRES_DB = os.getenv("POSTGRES_DB", "zonse_homes")
+        self.POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+        self.SQLALCHEMY_DATABASE_URI = os.getenv("SQLALCHEMY_DATABASE_URI") or (
+            f"postgresql+psycopg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
+
 
 settings = Settings()

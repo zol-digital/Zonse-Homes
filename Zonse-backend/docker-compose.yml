@@ -1,4 +1,4 @@
-version: '3.8'
+﻿version: '3.8'
 
 services:
   db:
@@ -27,7 +27,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - SQLALCHEMY_DATABASE_URI=postgresql://zonse_user:zonse_password@db:5432/zonse_db
+      POSTGRES_SERVER: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: zonse_user
+      POSTGRES_PASSWORD: zonse_password
+      POSTGRES_DB: zonse_db
     volumes:
       - .:/app
       - uploads_data:/app/uploads
