@@ -12,4 +12,8 @@ class PropertyImage(Base):
     is_primary = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    property = relationship("Property", back_populates="images")
+    property = relationship(
+        "Property",
+        back_populates="images",
+        foreign_keys=[property_id],
+    )

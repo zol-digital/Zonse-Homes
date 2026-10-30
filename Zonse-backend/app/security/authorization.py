@@ -32,6 +32,12 @@ def require_roles(*roles: str):
     return role_dependency
 
 
+def require_listing_manager(
+    user: User = Depends(require_roles("owner", "agent", "property_manager", "admin")),
+) -> User:
+    return user
+
+
 def require_property_owner(
     property_id: int,
     user: User = Depends(get_current_user),

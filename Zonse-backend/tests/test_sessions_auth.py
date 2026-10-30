@@ -4,11 +4,13 @@ import pytest
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, select, update
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models
 from app.api.v1.endpoints.auth import router as auth_router
+from app.api.v1.endpoints.properties import router as properties_router
 from app.config import settings
 from app.database import Base, get_db
 from app.exception_handlers import register_exception_handlers
@@ -16,7 +18,11 @@ from app.models.identity import UserRole
 from app.models.property import Property
 from app.models.session import UserSession
 from app.models.user import User
-from app.security.authorization import require_property_owner, require_roles
+from app.security.authorization import (
+    require_listing_manager,
+    require_property_owner,
+    require_roles,
+)
 from app.security.passwords import hash_password
 from app.security.sessions import (
     create_user_session,
@@ -55,6 +61,7 @@ def auth_environment(monkeypatch):
     test_app = FastAPI()
     register_exception_handlers(test_app)
     test_app.include_router(auth_router, prefix="/api/v1")
+    test_app.include_router(properties_router, prefix="/api/v1")
 
     protected_router = APIRouter()
 
@@ -68,6 +75,10 @@ def auth_environment(monkeypatch):
 
     @protected_router.get("/test/roles/owner-or-agent")
     def owner_or_agent_route(user: User = Depends(require_roles("owner", "agent"))):
+        return {"user_id": user.id}
+
+    @protected_router.get("/test/listing-manager")
+    def listing_manager_route(user: User = Depends(require_listing_manager)):
         return {"user_id": user.id}
 
     @protected_router.get("/test/properties/{property_id}")
@@ -125,6 +136,46 @@ def _issue_cookie(client, session_factory, user_id):
         token, _ = create_user_session(db, user_id=user_id)
     client.cookies.set(_COOKIE_NAME, token)
     return token
+
+
+def _create_property(
+    session_factory,
+    owner_id,
+    *,
+    status="draft",
+    intent="sale",
+):
+    with session_factory() as db:
+        listing = Property(
+            title=f"{status} listing",
+            price=100000,
+            currency="MWK",
+            city="Lilongwe",
+            property_type="house",
+            intent=intent,
+            rental_period="month" if intent == "rent" else None,
+            owner_id=owner_id,
+            status=status,
+        )
+        db.add(listing)
+        db.commit()
+        return listing.id
+
+
+def _listing_payload(**overrides):
+    return {
+        "title": "Advertiser listing",
+        "description": "A suitable home",
+        "price": "125000.00",
+        "currency": "MWK",
+        "city": "Lilongwe",
+        "property_type": "house",
+        **overrides,
+    }
+
+
+def _origin_headers():
+    return {"Origin": "http://testserver"}
 
 
 def test_login_persists_only_digest_sets_protected_cookie_and_authenticates_me(
@@ -455,6 +506,38 @@ def test_roles_are_authoritative_and_allow_any_requested_assigned_role(
     assert client.get("/api/v1/auth/me").json()["roles"] == []
 
 
+def test_listing_manager_requires_an_assigned_property_role(auth_environment):
+    client, session_factory = auth_environment
+    owner_id = _create_user(
+        session_factory,
+        email="listing-owner@example.test",
+        roles=("owner",),
+    )
+    agent_id = _create_user(
+        session_factory,
+        email="listing-agent@example.test",
+        roles=("agent",),
+    )
+    seeker_id = _create_user(
+        session_factory,
+        email="listing-seeker@example.test",
+        roles=("seeker",),
+    )
+
+    _issue_cookie(client, session_factory, owner_id)
+    assert client.get("/api/v1/test/listing-manager").json() == {
+        "user_id": owner_id
+    }
+
+    _issue_cookie(client, session_factory, agent_id)
+    assert client.get("/api/v1/test/listing-manager").json() == {
+        "user_id": agent_id
+    }
+
+    _issue_cookie(client, session_factory, seeker_id)
+    assert client.get("/api/v1/test/listing-manager").status_code == 403
+
+
 def test_owner_role_does_not_grant_access_to_another_users_property(
     auth_environment,
 ):
@@ -539,3 +622,419 @@ def test_configured_frontend_origin_is_accepted_for_unsafe_requests(
     )
 
     assert response.status_code == 401
+
+
+def test_listing_create_assigns_authenticated_owner_and_keeps_contact_private(
+    auth_environment,
+):
+    client, session_factory = auth_environment
+    owner_id = _create_user(
+        session_factory,
+        email="advertiser@example.test",
+        roles=("owner",),
+    )
+    _issue_cookie(client, session_factory, owner_id)
+
+    response = client.post(
+        "/api/v1/properties",
+        json=_listing_payload(
+            advertiser_name="Private name",
+            contact_phone="+265 999 123456",
+            contact_email="private@example.test",
+            show_contact_details=False,
+        ),
+        headers=_origin_headers(),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "draft"
+    assert response.json()["advertiser_name"] is None
+    assert response.json()["contact_phone"] is None
+    assert response.json()["contact_email"] is None
+    assert "owner_id" not in response.json()
+    with session_factory() as db:
+        listing = db.execute(select(Property)).scalar_one()
+        assert listing.owner_id == owner_id
+        assert listing.status == "draft"
+
+
+def test_listing_retrieval_and_pagination_are_scoped_to_authenticated_owner(
+    auth_environment,
+):
+    client, session_factory = auth_environment
+    owner_id = _create_user(
+        session_factory,
+        email="pagination-owner@example.test",
+        roles=("owner",),
+    )
+    other_owner_id = _create_user(
+        session_factory,
+        email="pagination-other@example.test",
+        roles=("owner",),
+    )
+    _issue_cookie(client, session_factory, owner_id)
+
+    created_ids = []
+    for title in ("First listing", "Second listing", "Third listing"):
+        created = client.post(
+            "/api/v1/properties",
+            json=_listing_payload(title=title),
+            headers=_origin_headers(),
+        )
+        assert created.status_code == 201
+        created_ids.append(created.json()["id"])
+    _create_property(session_factory, other_owner_id)
+
+    first_page = client.get("/api/v1/properties?limit=2")
+    second_page = client.get("/api/v1/properties?limit=2&offset=2")
+    retrieved = client.get(f"/api/v1/properties/{created_ids[0]}")
+
+    assert first_page.status_code == 200
+    assert [item["id"] for item in first_page.json()] == created_ids[:0:-1]
+    assert [item["id"] for item in second_page.json()] == [created_ids[0]]
+    assert retrieved.status_code == 200
+    assert retrieved.json()["id"] == created_ids[0]
+
+
+def test_listing_update_accepts_draft_and_changes_requested_states(auth_environment):
+    client, session_factory = auth_environment
+    owner_id = _create_user(
+        session_factory,
+        email="editable-owner@example.test",
+        roles=("owner",),
+    )
+    _issue_cookie(client, session_factory, owner_id)
+
+    for current_status in ("draft", "changes_requested"):
+        property_id = _create_property(
+            session_factory,
+            owner_id,
+            status=current_status,
+        )
+        response = client.patch(
+            f"/api/v1/properties/{property_id}",
+            json={"title": "Updated title"},
+            headers=_origin_headers(),
+        )
+
+        assert response.status_code == 200
+        assert response.json()["title"] == "Updated title"
+        assert response.json()["status"] == current_status
+
+
+@pytest.mark.parametrize(
+    "current_status",
+    (
+        "pending_review",
+        "published",
+        "rejected",
+        "paused",
+        "rented",
+        "sold",
+        "expired",
+        "removed",
+        "archived",
+    ),
+)
+def test_listing_update_is_rejected_outside_editable_states(
+    auth_environment,
+    current_status,
+):
+    client, session_factory = auth_environment
+    owner_id = _create_user(
+        session_factory,
+        email=f"locked-{current_status}@example.test",
+        roles=("owner",),
+    )
+    _issue_cookie(client, session_factory, owner_id)
+    property_id = _create_property(
+        session_factory,
+        owner_id,
+        status=current_status,
+    )
+
+    response = client.patch(
+        f"/api/v1/properties/{property_id}",
+        json={"title": "Must remain unchanged"},
+        headers=_origin_headers(),
+    )
+
+    assert response.status_code == 409
+    with session_factory() as db:
+        listing = db.get(Property, property_id)
+        assert listing.title == f"{current_status} listing"
+        assert listing.status == current_status
+
+
+@pytest.mark.parametrize("current_status", ("draft", "changes_requested"))
+def test_listing_can_be_submitted_from_eligible_states(
+    auth_environment,
+    current_status,
+):
+    client, session_factory = auth_environment
+    owner_id = _create_user(
+        session_factory,
+        email=f"submit-{current_status}@example.test",
+        roles=("owner",),
+    )
+    _issue_cookie(client, session_factory, owner_id)
+    property_id = _create_property(
+        session_factory,
+        owner_id,
+        status=current_status,
+    )
+
+    response = client.post(
+        f"/api/v1/properties/{property_id}/submit",
+        headers=_origin_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "pending_review"
+    with session_factory() as db:
+        assert db.get(Property, property_id).status == "pending_review"
+
+
+def test_listing_pause_rented_sold_and_archive_transitions(auth_environment):
+    client, session_factory = auth_environment
+    owner_id = _create_user(
+        session_factory,
+        email="lifecycle-owner@example.test",
+        roles=("owner",),
+    )
+    _issue_cookie(client, session_factory, owner_id)
+    cases = (
+        ("published", "sale", "pause", "paused"),
+        ("published", "rent", "mark-rented", "rented"),
+        ("published", "sale", "mark-sold", "sold"),
+        ("paused", "sale", "archive", "archived"),
+    )
+
+    for current_status, intent, operation, expected_status in cases:
+        property_id = _create_property(
+            session_factory,
+            owner_id,
+            status=current_status,
+            intent=intent,
+        )
+        response = client.post(
+            f"/api/v1/properties/{property_id}/{operation}",
+            headers=_origin_headers(),
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == expected_status
+        with session_factory() as db:
+            assert db.get(Property, property_id).status == expected_status
+
+
+@pytest.mark.parametrize(
+    ("current_status", "intent", "operation"),
+    (
+        ("published", "sale", "submit"),
+        ("draft", "sale", "pause"),
+        ("published", "sale", "mark-rented"),
+        ("published", "rent", "mark-sold"),
+        ("draft", "sale", "archive"),
+    ),
+)
+def test_invalid_listing_lifecycle_transitions_do_not_modify_listing(
+    auth_environment,
+    current_status,
+    intent,
+    operation,
+):
+    client, session_factory = auth_environment
+    owner_id = _create_user(
+        session_factory,
+        email=f"invalid-{operation}-{current_status}@example.test",
+        roles=("owner",),
+    )
+    _issue_cookie(client, session_factory, owner_id)
+    property_id = _create_property(
+        session_factory,
+        owner_id,
+        status=current_status,
+        intent=intent,
+    )
+
+    response = client.post(
+        f"/api/v1/properties/{property_id}/{operation}",
+        headers=_origin_headers(),
+    )
+
+    assert response.status_code == 409
+    with session_factory() as db:
+        assert db.get(Property, property_id).status == current_status
+
+
+@pytest.mark.parametrize(
+    ("method", "path_suffix", "payload"),
+    (
+        ("patch", "", {"title": "Changed"}),
+        ("post", "/submit", None),
+        ("post", "/pause", None),
+        ("post", "/mark-rented", None),
+        ("post", "/mark-sold", None),
+        ("post", "/archive", None),
+    ),
+)
+def test_individual_listing_operations_hide_other_owners_listings(
+    auth_environment,
+    method,
+    path_suffix,
+    payload,
+):
+    client, session_factory = auth_environment
+    owner_id = _create_user(
+        session_factory,
+        email=f"actual-owner-{method}-{path_suffix}@example.test",
+        roles=("owner",),
+    )
+    other_owner_id = _create_user(
+        session_factory,
+        email=f"other-owner-{method}-{path_suffix}@example.test",
+        roles=("owner",),
+    )
+    _issue_cookie(client, session_factory, other_owner_id)
+    current_status = "published" if path_suffix in {
+        "/pause",
+        "/mark-rented",
+        "/mark-sold",
+    } else "draft"
+    property_id = _create_property(session_factory, owner_id, status=current_status)
+
+    response = getattr(client, method)(
+        f"/api/v1/properties/{property_id}{path_suffix}",
+        json=payload,
+        headers=_origin_headers(),
+    )
+
+    assert response.status_code == 404
+    with session_factory() as db:
+        assert db.get(Property, property_id).status == current_status
+
+
+@pytest.mark.parametrize("field_name", ("id", "owner_id", "status", "created_at", "updated_at"))
+def test_listing_create_rejects_protected_fields(auth_environment, field_name):
+    client, session_factory = auth_environment
+    owner_id = _create_user(
+        session_factory,
+        email=f"protected-{field_name}@example.test",
+        roles=("owner",),
+    )
+    _issue_cookie(client, session_factory, owner_id)
+    payload = _listing_payload()
+    payload[field_name] = 999 if field_name in {"id", "owner_id"} else "published"
+
+    response = client.post(
+        "/api/v1/properties",
+        json=payload,
+        headers=_origin_headers(),
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("field_name", ("id", "owner_id", "status", "created_at", "updated_at"))
+def test_listing_update_rejects_protected_fields(auth_environment, field_name):
+    client, session_factory = auth_environment
+    owner_id = _create_user(
+        session_factory,
+        email=f"update-protected-{field_name}@example.test",
+        roles=("owner",),
+    )
+    _issue_cookie(client, session_factory, owner_id)
+    property_id = _create_property(session_factory, owner_id)
+
+    response = client.patch(
+        f"/api/v1/properties/{property_id}",
+        json={field_name: 999 if field_name in {"id", "owner_id"} else "published"},
+        headers=_origin_headers(),
+    )
+
+    assert response.status_code == 422
+    with session_factory() as db:
+        assert db.get(Property, property_id).title == "draft listing"
+
+
+def test_listing_endpoints_require_authentication_and_listing_manager_role(
+    auth_environment,
+):
+    client, session_factory = auth_environment
+    owner_id = _create_user(
+        session_factory,
+        email="protected-api-owner@example.test",
+        roles=("owner",),
+    )
+    seeker_id = _create_user(
+        session_factory,
+        email="protected-api-seeker@example.test",
+        roles=("seeker",),
+    )
+    property_id = _create_property(session_factory, owner_id)
+
+    unauthenticated = client.get("/api/v1/properties")
+    assert unauthenticated.status_code == 401
+    unauthenticated_create = client.post(
+        "/api/v1/properties",
+        json=_listing_payload(),
+        headers=_origin_headers(),
+    )
+    assert unauthenticated_create.status_code == 401
+
+    _issue_cookie(client, session_factory, seeker_id)
+    unauthorized = client.get("/api/v1/properties")
+    assert unauthorized.status_code == 403
+    denied_create = client.post(
+        "/api/v1/properties",
+        json=_listing_payload(),
+        headers=_origin_headers(),
+    )
+    assert denied_create.status_code == 403
+
+    _issue_cookie(client, session_factory, owner_id)
+    assert client.get(f"/api/v1/properties/{property_id}").status_code == 200
+
+
+def test_listing_database_failures_roll_back_creation_and_status_changes(
+    auth_environment,
+):
+    client, session_factory = auth_environment
+    owner_id = _create_user(
+        session_factory,
+        email="rollback-owner@example.test",
+        roles=("owner",),
+    )
+    _issue_cookie(client, session_factory, owner_id)
+    property_id = _create_property(session_factory, owner_id)
+
+    def fail_commit(_session):
+        del _session
+        raise SQLAlchemyError("synthetic transaction failure")
+
+    event.listen(session_factory, "before_commit", fail_commit)
+    try:
+        failed_create = client.post(
+            "/api/v1/properties",
+            json=_listing_payload(title="Must not persist"),
+            headers=_origin_headers(),
+        )
+        failed_update = client.patch(
+            f"/api/v1/properties/{property_id}",
+            json={"title": "Must roll back"},
+            headers=_origin_headers(),
+        )
+        failed_transition = client.post(
+            f"/api/v1/properties/{property_id}/submit",
+            headers=_origin_headers(),
+        )
+    finally:
+        event.remove(session_factory, "before_commit", fail_commit)
+
+    assert failed_create.status_code == 503
+    assert failed_update.status_code == 503
+    assert failed_transition.status_code == 503
+    with session_factory() as db:
+        listings = list(db.execute(select(Property)).scalars())
+        assert len(listings) == 1
+        assert listings[0].title == "draft listing"
