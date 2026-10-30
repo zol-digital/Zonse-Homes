@@ -17,17 +17,23 @@ def test_check_database_connection_executes_select_one(monkeypatch):
     engine.connect.assert_called_once_with()
     connection.execute.assert_called_once()
     assert str(connection.execute.call_args.args[0]) == "SELECT 1"
+    engine.connect.return_value.__exit__.assert_called_once_with(None, None, None)
 
 
 def test_check_database_connection_propagates_database_failure(monkeypatch):
-    engine = Mock()
-    engine.connect.side_effect = OperationalError(
+    connection = Mock()
+    engine = MagicMock()
+    engine.connect.return_value.__enter__.return_value = connection
+    connection.execute.side_effect = OperationalError(
         "SELECT 1", {}, Exception("database unavailable")
     )
     monkeypatch.setattr(database, "engine", engine)
 
     with pytest.raises(OperationalError):
         database.check_database_connection()
+
+    engine.connect.return_value.__exit__.assert_called_once()
+    assert engine.connect.return_value.__exit__.call_args.args[0] is OperationalError
 
 
 def test_get_db_creates_distinct_sessions_and_closes_each(monkeypatch):

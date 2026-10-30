@@ -1,7 +1,6 @@
 services:
   db:
     image: postgres:15-alpine
-    container_name: zonse_db
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-zonse_user}
@@ -19,18 +18,22 @@ services:
 
   web:
     build: .
-    container_name: zonse_api
     restart: always
     # Compose is the local development workflow; the image default is production-safe.
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
-      - "8000:8000"
+      - "${API_HOST_PORT:-8000}:8000"
     environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
       POSTGRES_SERVER: db
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_USER: ${POSTGRES_USER:-zonse_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zonse_password}
       POSTGRES_DB: ${POSTGRES_DB:-zonse_db}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-zonse_session}
+      SESSION_LIFETIME_SECONDS: ${SESSION_LIFETIME_SECONDS:-86400}
+      SESSION_COOKIE_SAMESITE: ${SESSION_COOKIE_SAMESITE:-lax}
+      SESSION_CSRF_TRUSTED_ORIGINS: ${SESSION_CSRF_TRUSTED_ORIGINS:-}
     volumes:
       - .:/app
       - uploads_data:/app/uploads
