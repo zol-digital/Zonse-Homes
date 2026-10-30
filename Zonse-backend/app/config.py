@@ -1,5 +1,7 @@
 import os
 
+from sqlalchemy.engine import URL
+
 
 class Settings:
     def __init__(self):
@@ -10,10 +12,18 @@ class Settings:
         self.POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
         self.POSTGRES_DB = os.getenv("POSTGRES_DB", "zonse_homes")
         self.POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
-        self.SQLALCHEMY_DATABASE_URI = os.getenv("SQLALCHEMY_DATABASE_URI") or (
-            f"postgresql+psycopg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-            f"@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-        )
+        database_uri = os.getenv("SQLALCHEMY_DATABASE_URI")
+        if database_uri:
+            self.SQLALCHEMY_DATABASE_URI = database_uri
+        else:
+            self.SQLALCHEMY_DATABASE_URI = URL.create(
+                drivername="postgresql+psycopg",
+                username=self.POSTGRES_USER,
+                password=self.POSTGRES_PASSWORD,
+                host=self.POSTGRES_SERVER,
+                port=int(self.POSTGRES_PORT),
+                database=self.POSTGRES_DB,
+            ).render_as_string(hide_password=False)
 
 
 settings = Settings()
