@@ -1,5 +1,6 @@
 import os
 import re
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from sqlalchemy.exc import ArgumentError
@@ -10,6 +11,21 @@ class Settings:
     def __init__(self):
         self.PROJECT_NAME = os.getenv("PROJECT_NAME", "Zonse Homes Backend")
         self.API_V1_STR = os.getenv("API_V1_STR", "/api/v1")
+        upload_directory = os.getenv(
+            "UPLOAD_DIR",
+            str(Path(__file__).resolve().parents[1] / "uploads"),
+        ).strip()
+        if not upload_directory:
+            raise ValueError("UPLOAD_DIR must not be empty")
+        self.UPLOAD_DIR = Path(upload_directory).expanduser().resolve()
+        try:
+            self.MAX_IMAGE_UPLOAD_BYTES = int(
+                os.getenv("MAX_IMAGE_UPLOAD_BYTES", "10485760")
+            )
+        except ValueError:
+            raise ValueError("MAX_IMAGE_UPLOAD_BYTES must be an integer") from None
+        if self.MAX_IMAGE_UPLOAD_BYTES <= 0:
+            raise ValueError("MAX_IMAGE_UPLOAD_BYTES must be positive")
         self.POSTGRES_SERVER = os.getenv("POSTGRES_SERVER", "localhost")
         self.POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
         self.POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")

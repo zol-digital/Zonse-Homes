@@ -45,6 +45,47 @@ class PropertyImageResponse(BaseModel):
     created_at: datetime | None
 
 
+class PublicPropertyResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    description: str | None
+    price: Decimal
+    currency: str
+    city: str
+    property_type: str
+    intent: PropertyIntent
+    bedrooms: int | None
+    bathrooms: int | None
+    negotiable: bool
+    rental_period: RentalPeriod | None
+    deposit: Decimal | None
+    floor_area: Decimal | None
+    floor_area_unit: AreaUnit
+    land_area: Decimal | None
+    land_area_unit: LandAreaUnit
+    amenities: list[str]
+    utilities: list[str]
+    district: str | None
+    neighborhood: str | None
+    available_from: date | None
+    advertiser_name: str | None
+    contact_phone: str | None
+    contact_email: str | None
+    show_contact_details: bool = Field(exclude=True)
+    images: list[PropertyImageResponse] = Field(default_factory=list)
+    created_at: datetime | None
+
+    @model_validator(mode="after")
+    def apply_contact_privacy(self):
+        if not self.show_contact_details:
+            self.advertiser_name = None
+            self.contact_phone = None
+            self.contact_email = None
+        return self
+
+
 class PropertyCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

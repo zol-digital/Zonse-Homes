@@ -162,3 +162,42 @@ def test_session_settings_reject_invalid_cookie_names(monkeypatch):
 
     with pytest.raises(ValueError, match="valid cookie name"):
         Settings()
+
+
+def test_image_storage_settings_are_configurable(tmp_path, monkeypatch):
+    upload_directory = tmp_path / "configured-uploads"
+    monkeypatch.setenv("UPLOAD_DIR", str(upload_directory))
+    monkeypatch.setenv("MAX_IMAGE_UPLOAD_BYTES", "5242880")
+
+    settings = Settings()
+
+    assert settings.UPLOAD_DIR == upload_directory.resolve()
+    assert settings.MAX_IMAGE_UPLOAD_BYTES == 5 * 1024 * 1024
+
+
+def test_image_storage_settings_use_safe_defaults(monkeypatch):
+    monkeypatch.delenv("UPLOAD_DIR", raising=False)
+    monkeypatch.delenv("MAX_IMAGE_UPLOAD_BYTES", raising=False)
+
+    settings = Settings()
+
+    assert settings.UPLOAD_DIR.name == "uploads"
+    assert settings.MAX_IMAGE_UPLOAD_BYTES == 10 * 1024 * 1024
+
+
+def test_image_storage_settings_reject_empty_directory(monkeypatch):
+    monkeypatch.setenv("UPLOAD_DIR", " ")
+
+    with pytest.raises(ValueError, match="UPLOAD_DIR must not be empty"):
+        Settings()
+
+
+@pytest.mark.parametrize("max_image_upload_bytes", ("0", "-1", "invalid"))
+def test_image_storage_settings_reject_invalid_size_limits(
+    monkeypatch,
+    max_image_upload_bytes,
+):
+    monkeypatch.setenv("MAX_IMAGE_UPLOAD_BYTES", max_image_upload_bytes)
+
+    with pytest.raises(ValueError, match="MAX_IMAGE_UPLOAD_BYTES"):
+        Settings()
