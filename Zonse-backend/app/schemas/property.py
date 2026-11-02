@@ -75,6 +75,9 @@ class PublicPropertyResponse(BaseModel):
     contact_email: str | None
     show_contact_details: bool = Field(exclude=True)
     images: list[PropertyImageResponse] = Field(default_factory=list)
+    is_featured: bool = False
+    featured_placement: Literal["area", "homepage"] | None = None
+    featured_expires_at: datetime | None = None
     created_at: datetime | None
 
     @model_validator(mode="after")

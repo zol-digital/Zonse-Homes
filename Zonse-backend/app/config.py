@@ -32,6 +32,25 @@ class Settings:
         self.POSTGRES_DB = os.getenv("POSTGRES_DB", "zonse_homes")
         self.POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
         self.ENVIRONMENT = os.getenv("ENVIRONMENT", "development").strip().lower()
+        self.REPORT_IP_HASH_SECRET = os.getenv(
+            "REPORT_IP_HASH_SECRET",
+            "development-only-report-ip-hash-secret",
+        )
+        if (
+            self.ENVIRONMENT == "production"
+            and (
+                len(self.REPORT_IP_HASH_SECRET.encode("utf-8")) < 32
+                or self.REPORT_IP_HASH_SECRET
+                in {
+                    "development-only-report-ip-hash-secret",
+                    "replace_with_a_random_secret_at_least_32_bytes",
+                }
+            )
+        ):
+            raise ValueError(
+                "Production requires a dedicated REPORT_IP_HASH_SECRET "
+                "of at least 32 bytes"
+            )
         self.SESSION_COOKIE_NAME = os.getenv(
             "SESSION_COOKIE_NAME", "zonse_session"
         ).strip()
@@ -70,6 +89,9 @@ class Settings:
             self._validate_origin(origin.strip())
             for origin in trusted_origins.split(",")
             if origin.strip()
+        )
+        self.FEATURED_PAYMENT_WEBHOOK_SECRET = os.getenv(
+            "FEATURED_PAYMENT_WEBHOOK_SECRET", ""
         )
 
         database_uri = os.getenv("SQLALCHEMY_DATABASE_URI")

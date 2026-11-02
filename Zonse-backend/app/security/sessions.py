@@ -136,6 +136,23 @@ def get_current_user(
     return user_session.user
 
 
+def get_optional_current_user(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> User | None:
+    token = request.cookies.get(settings.SESSION_COOKIE_NAME)
+    if not token:
+        return None
+
+    user_session = _find_current_session(db, token)
+    if user_session is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication is required",
+        )
+    return user_session.user
+
+
 def get_assigned_roles(db: Session, user_id: int) -> list[str]:
     statement = (
         select(UserRole.role)

@@ -18,11 +18,14 @@ def test_alembic_configuration_loads_and_finds_migrations():
     script_directory = ScriptDirectory.from_config(config)
 
     assert Path(script_directory.dir).resolve() == (BACKEND_ROOT / "alembic").resolve()
-    assert script_directory.get_current_head() == "20261030_0005"
+    assert script_directory.get_current_head() == "20261102_0008"
     assert script_directory.get_revision("20261030_0002").down_revision == "20261030_0001"
     assert script_directory.get_revision("20261030_0003").down_revision == "20261030_0002"
     assert script_directory.get_revision("20261030_0004").down_revision == "20261030_0003"
     assert script_directory.get_revision("20261030_0005").down_revision == "20261030_0004"
+    assert script_directory.get_revision("20261102_0006").down_revision == "20261030_0005"
+    assert script_directory.get_revision("20261102_0007").down_revision == "20261102_0006"
+    assert script_directory.get_revision("20261102_0008").down_revision == "20261102_0007"
 
 
 def test_all_existing_models_are_registered_once_in_metadata():
@@ -39,8 +42,15 @@ def test_all_existing_models_are_registered_once_in_metadata():
         "business_verification_reviews",
         "user_sessions",
         "user_action_tokens",
+        "moderation_action_logs",
+        "property_reports",
+        "featured_placement_packages",
+        "featured_promotion_settings",
+        "featured_promotion_orders",
+        "featured_promotions",
+        "featured_promotion_events",
     }
-    assert len(Base.registry.mappers) == 12
+    assert len(Base.registry.mappers) == 19
 
 
 def test_offline_upgrade_generates_valid_initial_migration_sql():
@@ -71,12 +81,22 @@ def test_offline_upgrade_generates_valid_initial_migration_sql():
     assert "CREATE TABLE business_verifications" in result.stdout
     assert "CREATE TABLE user_sessions" in result.stdout
     assert "CREATE TABLE user_action_tokens" in result.stdout
+    assert "CREATE TABLE moderation_action_logs" in result.stdout
+    assert "CREATE TABLE property_reports" in result.stdout
+    assert "CREATE TABLE featured_placement_packages" in result.stdout
+    assert "CREATE TABLE featured_promotion_orders" in result.stdout
+    assert "CREATE TABLE featured_promotions" in result.stdout
+    assert "CREATE TABLE featured_promotion_events" in result.stdout
+    assert "reporter_ip_digest VARCHAR(64) NOT NULL" in result.stdout
+    assert "review_report" in result.stdout
     assert "ADD COLUMN intent VARCHAR(8) DEFAULT 'sale' NOT NULL" in result.stdout
     assert "ADD COLUMN status VARCHAR(24) DEFAULT 'draft' NOT NULL" in result.stdout
     assert "ADD CONSTRAINT ck_properties_property_type CHECK" not in result.stdout
     assert "ADD CONSTRAINT ck_properties_status CHECK" in result.stdout
     assert "ADD CONSTRAINT ck_properties_deposit_nonnegative CHECK" in result.stdout
     assert "fk_properties_cover_image_id_property_images" in result.stdout
+    assert "role IN ('seeker', 'owner', 'agent', 'property_manager', 'moderator', 'admin')" in result.stdout
+    assert "action IN ('approve', 'request_changes', 'reject')" in result.stdout
     assert "not-a-real-password" not in result.stdout
     assert "not-a-real-password" not in result.stderr
 
@@ -171,3 +191,53 @@ def test_offline_listing_downgrade_removes_only_listing_schema():
     assert "DROP COLUMN cover_image_id" in result.stdout
     assert "DROP TABLE properties" not in result.stdout
     assert "DROP TABLE user_sessions" not in result.stdout
+
+
+def test_offline_moderation_downgrade_removes_only_moderation_schema():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "alembic",
+            "downgrade",
+            "20261102_0006:20261030_0005",
+            "--sql",
+        ],
+        cwd=BACKEND_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "DROP TABLE moderation_action_logs" in result.stdout
+    assert "DROP CONSTRAINT ck_user_roles_role" in result.stdout
+    assert (
+        "role IN ('seeker', 'owner', 'agent', 'property_manager', 'admin')"
+        in result.stdout
+    )
+    assert "DROP TABLE properties" not in result.stdout
+    assert "DROP TABLE users" not in result.stdout
+
+
+def test_offline_report_downgrade_removes_only_report_schema():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "alembic",
+            "downgrade",
+            "20261102_0007:20261102_0006",
+            "--sql",
+        ],
+        cwd=BACKEND_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "DROP TABLE property_reports" in result.stdout
+    assert "DROP COLUMN report_id" in result.stdout
+    assert "DROP TABLE moderation_action_logs" not in result.stdout
+    assert "DROP TABLE properties" not in result.stdout

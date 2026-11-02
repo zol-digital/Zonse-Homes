@@ -53,6 +53,10 @@ def test_session_settings_default_to_lax_development_cookies(monkeypatch):
 
 def test_production_session_cookies_are_secure(monkeypatch):
     monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv(
+        "REPORT_IP_HASH_SECRET",
+        "configured-report-ip-hash-secret-at-least-32-bytes",
+    )
     monkeypatch.delenv("SESSION_COOKIE_SECURE", raising=False)
     monkeypatch.setenv("SESSION_COOKIE_SAMESITE", "lax")
     monkeypatch.delenv("SQLALCHEMY_DATABASE_URI", raising=False)
@@ -68,6 +72,10 @@ def test_production_session_cookies_are_secure(monkeypatch):
 
 def test_production_requires_explicit_database_configuration(monkeypatch):
     monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv(
+        "REPORT_IP_HASH_SECRET",
+        "configured-report-ip-hash-secret-at-least-32-bytes",
+    )
     monkeypatch.delenv("SQLALCHEMY_DATABASE_URI", raising=False)
     for key in ("POSTGRES_SERVER", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"):
         monkeypatch.delenv(key, raising=False)
@@ -85,6 +93,10 @@ def test_production_rejects_development_database_password_fallbacks(
     password,
 ):
     monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv(
+        "REPORT_IP_HASH_SECRET",
+        "configured-report-ip-hash-secret-at-least-32-bytes",
+    )
     monkeypatch.delenv("SQLALCHEMY_DATABASE_URI", raising=False)
     monkeypatch.setenv("POSTGRES_SERVER", "db.example.test")
     monkeypatch.setenv("POSTGRES_USER", "zonse_app")
@@ -98,6 +110,10 @@ def test_production_rejects_development_database_password_fallbacks(
 def test_production_rejects_development_credentials_in_database_uri(monkeypatch):
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv(
+        "REPORT_IP_HASH_SECRET",
+        "configured-report-ip-hash-secret-at-least-32-bytes",
+    )
+    monkeypatch.setenv(
         "SQLALCHEMY_DATABASE_URI",
         "postgresql+psycopg://zonse_user:zonse_password@db.example.test/zonse",
     )
@@ -108,6 +124,10 @@ def test_production_rejects_development_credentials_in_database_uri(monkeypatch)
 
 def test_production_accepts_explicit_database_uri(monkeypatch):
     monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv(
+        "REPORT_IP_HASH_SECRET",
+        "configured-report-ip-hash-secret-at-least-32-bytes",
+    )
     database_uri = (
         "postgresql+psycopg://zonse_app:strong-secret@db.example.test/zonse"
     )
@@ -122,6 +142,10 @@ def test_session_cookie_settings_reject_insecure_production_and_invalid_values(
     monkeypatch,
 ):
     monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv(
+        "REPORT_IP_HASH_SECRET",
+        "configured-report-ip-hash-secret-at-least-32-bytes",
+    )
     monkeypatch.setenv("SESSION_COOKIE_SECURE", "false")
     monkeypatch.setenv("POSTGRES_SERVER", "db.example.test")
     monkeypatch.setenv("POSTGRES_USER", "zonse_app")
@@ -136,6 +160,18 @@ def test_session_cookie_settings_reject_insecure_production_and_invalid_values(
     monkeypatch.setenv("SESSION_COOKIE_SECURE", "false")
     monkeypatch.setenv("SESSION_COOKIE_SAMESITE", "none")
     with pytest.raises(ValueError, match="SameSite=None"):
+        Settings()
+
+
+def test_production_requires_a_dedicated_report_ip_hash_secret(monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv(
+        "SQLALCHEMY_DATABASE_URI",
+        "postgresql+psycopg://user:valid-secret@db.example.test/zonse",
+    )
+    monkeypatch.delenv("REPORT_IP_HASH_SECRET", raising=False)
+
+    with pytest.raises(ValueError, match="REPORT_IP_HASH_SECRET"):
         Settings()
 
 

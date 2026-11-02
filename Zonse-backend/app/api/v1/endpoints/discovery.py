@@ -1,16 +1,21 @@
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import StringConstraints
-from sqlalchemy import or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
+from app.models.featured import FeaturedPromotion
 from app.models.property import Property, PropertyStatus
+from app.models.user import User
 from app.schemas.property import PropertyType, PublicPropertyResponse
+from app.security.sessions import get_current_user
 
 router = APIRouter(prefix="/discovery/properties")
+featured_router = APIRouter(prefix="/discovery/featured")
 
 _SearchText = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
@@ -50,8 +55,59 @@ def discover_properties(
             detail="min_price must be less than or equal to max_price",
         )
 
+    has_location_context = any(
+        value is not None for value in (city, district, neighborhood)
+    )
+    now = datetime.now(timezone.utc)
+    area_promotion_id = (
+        select(FeaturedPromotion.id)
+        .where(
+            FeaturedPromotion.listing_id == Property.id,
+            FeaturedPromotion.placement_type == "area",
+            FeaturedPromotion.status == "active",
+            FeaturedPromotion.starts_at <= now,
+            FeaturedPromotion.expires_at > now,
+        )
+    )
+    if has_location_context:
+        area_promotion_id = area_promotion_id.where(
+            FeaturedPromotion.target_city == Property.city
+        )
+        if district is None:
+            area_promotion_id = area_promotion_id.where(
+                FeaturedPromotion.target_district.is_(None)
+            )
+        else:
+            area_promotion_id = area_promotion_id.where(
+                or_(
+                    FeaturedPromotion.target_district.is_(None),
+                    func.lower(FeaturedPromotion.target_district)
+                    == func.lower(Property.district),
+                )
+            )
+        if neighborhood is None:
+            area_promotion_id = area_promotion_id.where(
+                FeaturedPromotion.target_neighborhood.is_(None)
+            )
+        else:
+            area_promotion_id = area_promotion_id.where(
+                or_(
+                    FeaturedPromotion.target_neighborhood.is_(None),
+                    func.lower(FeaturedPromotion.target_neighborhood)
+                    == func.lower(Property.neighborhood),
+                )
+            )
+    else:
+        area_promotion_id = area_promotion_id.where(False)
+    area_promotion_id = area_promotion_id.limit(1).correlate(Property).scalar_subquery()
+    area_promotion_expiry = (
+        select(FeaturedPromotion.expires_at)
+        .where(FeaturedPromotion.id == area_promotion_id)
+        .scalar_subquery()
+    )
+
     statement = (
-        select(Property)
+        select(Property, area_promotion_expiry.label("featured_expires_at"))
         .options(selectinload(Property.images))
         .where(Property.status == PropertyStatus.PUBLISHED.value)
     )
@@ -93,10 +149,53 @@ def discover_properties(
 
     statement = (
         statement.order_by(
+            case((area_promotion_id.is_not(None), 0), else_=1),
             Property.created_at.desc().nulls_last(),
             Property.id.desc(),
         )
         .limit(limit)
         .offset(offset)
     )
-    return list(db.execute(statement).scalars())
+    results = []
+    for listing, featured_expires_at in db.execute(statement):
+        listing.is_featured = featured_expires_at is not None
+        listing.featured_placement = "area" if listing.is_featured else None
+        listing.featured_expires_at = featured_expires_at
+        results.append(listing)
+    return results
+
+
+@featured_router.get(
+    "/homepage",
+    response_model=list[PublicPropertyResponse],
+)
+def discover_homepage_featured_properties(
+    limit: Annotated[int, Query(ge=1, le=24)] = 8,
+    _user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[Property]:
+    now = datetime.now(timezone.utc)
+    statement = (
+        select(Property, FeaturedPromotion.expires_at)
+        .join(
+            FeaturedPromotion,
+            FeaturedPromotion.listing_id == Property.id,
+        )
+        .options(selectinload(Property.images))
+        .where(
+            Property.status == PropertyStatus.PUBLISHED.value,
+            FeaturedPromotion.placement_type == "homepage",
+            FeaturedPromotion.status == "active",
+            FeaturedPromotion.starts_at <= now,
+            FeaturedPromotion.expires_at > now,
+        )
+        .order_by(FeaturedPromotion.starts_at.desc(), FeaturedPromotion.id.desc())
+        .limit(limit)
+    )
+    results = []
+    for listing, featured_expires_at in db.execute(statement):
+        listing.is_featured = True
+        listing.featured_placement = "homepage"
+        listing.featured_expires_at = featured_expires_at
+        results.append(listing)
+    return results

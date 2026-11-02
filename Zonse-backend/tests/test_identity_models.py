@@ -139,7 +139,12 @@ def test_active_user_requires_verified_email_and_canonical_email_is_normalized(
 def test_roles_allow_multiple_valid_values_and_reject_duplicates(db_session):
     user = _new_user()
     user.assigned_roles.extend(
-        [UserRole(role="seeker"), UserRole(role="owner"), UserRole(role="admin")]
+        [
+            UserRole(role="seeker"),
+            UserRole(role="owner"),
+            UserRole(role="moderator"),
+            UserRole(role="admin"),
+        ]
     )
     db_session.add(user)
     db_session.commit()
@@ -147,6 +152,7 @@ def test_roles_allow_multiple_valid_values_and_reject_duplicates(db_session):
     assert {assigned.role for assigned in user.assigned_roles} == {
         "seeker",
         "owner",
+        "moderator",
         "admin",
     }
 

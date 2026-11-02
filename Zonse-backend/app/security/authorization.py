@@ -8,7 +8,14 @@ from app.models.property import Property
 from app.models.user import User
 from app.security.sessions import get_current_user
 
-_ALLOWED_ROLES = frozenset({"seeker", "owner", "agent", "property_manager", "admin"})
+_ALLOWED_ROLES = frozenset({
+    "seeker",
+    "owner",
+    "agent",
+    "property_manager",
+    "moderator",
+    "admin",
+})
 
 
 def require_roles(*roles: str):
@@ -34,6 +41,18 @@ def require_roles(*roles: str):
 
 def require_listing_manager(
     user: User = Depends(require_roles("owner", "agent", "property_manager", "admin")),
+) -> User:
+    return user
+
+
+def require_moderator(
+    user: User = Depends(require_roles("moderator", "admin")),
+) -> User:
+    return user
+
+
+def require_admin(
+    user: User = Depends(require_roles("admin")),
 ) -> User:
     return user
 

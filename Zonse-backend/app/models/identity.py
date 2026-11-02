@@ -20,7 +20,7 @@ class UserRole(Base):
     __tablename__ = "user_roles"
     __table_args__ = (
         CheckConstraint(
-            "role IN ('seeker', 'owner', 'agent', 'property_manager', 'admin')",
+            "role IN ('seeker', 'owner', 'agent', 'property_manager', 'moderator', 'admin')",
             name="ck_user_roles_role",
         ),
     )
