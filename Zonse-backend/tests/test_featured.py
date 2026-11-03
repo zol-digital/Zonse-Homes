@@ -17,6 +17,7 @@ from app.api.v1.endpoints.discovery import featured_router as featured_discovery
 from app.api.v1.endpoints.featured import router as featured_router
 from app.config import settings
 from app.database import Base, get_db
+from app.models.admin_audit import AdminActionLog
 from app.models.featured import (
     FeaturedPlacementPackage,
     FeaturedPromotion,
@@ -323,6 +324,14 @@ def test_homepage_inventory_admin_controls_and_explicit_cancellation(
 ):
     client, session_factory, owner_id, admin_id = featured_environment
     assert client.get("/api/v1/discovery/featured/homepage").status_code == 401
+    assert client.post(
+        "/api/v1/admin/listings/1/hide",
+        json={"reason": "Only moderators can hide listings."},
+    ).status_code == 401
+    assert client.post(
+        "/api/v1/admin/listings/1/restore",
+        json={"reason": "Only moderators can restore listings."},
+    ).status_code == 401
     _authenticate(client, session_factory, owner_id)
     assert client.get("/api/v1/discovery/featured/homepage").status_code == 200
 
@@ -363,6 +372,11 @@ def test_homepage_inventory_admin_controls_and_explicit_cancellation(
     assert cancelled.status_code == 200
     assert cancelled.json()["status"] == "cancelled"
     assert cancelled.json()["cancelled_by_user_id"] == admin_id
+    cancellation_log = client.get("/api/v1/admin/action-logs").json()[0]
+    assert cancellation_log["action"] == "cancel"
+    assert cancellation_log["entity_type"] == "featured_promotion"
+    assert cancellation_log["entity_id"] == str(promotion_id)
+    assert cancellation_log["after_data"]["status"] == "cancelled"
     assert client.get("/api/v1/discovery/featured/homepage").json() == []
     assert _send_signed_payment(
         client,
@@ -370,6 +384,15 @@ def test_homepage_inventory_admin_controls_and_explicit_cancellation(
         amount="5000.00",
         reference="homepage-reference-2",
     ).status_code == 200
+    with session_factory() as db:
+        listing = db.get(Property, 2)
+        listing.moderator_hidden = True
+        db.commit()
+    assert client.get("/api/v1/discovery/featured/homepage").json() == []
+    with session_factory() as db:
+        listing = db.get(Property, 2)
+        listing.moderator_hidden = False
+        db.commit()
     assert [
         listing["id"]
         for listing in client.get("/api/v1/discovery/featured/homepage").json()
@@ -381,6 +404,10 @@ def test_homepage_inventory_admin_controls_and_explicit_cancellation(
     )
     assert settings_response.status_code == 200
     assert settings_response.json()["homepage_inventory_limit"] is None
+    settings_log = client.get("/api/v1/admin/action-logs").json()[0]
+    assert settings_log["entity_type"] == "featured_settings"
+    assert settings_log["before_data"]["homepage_inventory_limit"] == 1
+    assert settings_log["after_data"]["homepage_inventory_limit"] is None
 
 
 def test_admin_package_pricing_requires_homepage_tier_to_be_higher(
@@ -426,6 +453,32 @@ def test_admin_package_pricing_requires_homepage_tier_to_be_higher(
         },
     )
     assert valid_homepage_price.status_code == 201
+    with session_factory() as db:
+        audit_entries = list(
+            db.execute(
+                select(AdminActionLog).where(
+                    AdminActionLog.entity_type == "featured_package"
+                )
+            ).scalars()
+        )
+    assert len(audit_entries) == 2
+    assert {
+        (entry.actor_id, entry.action, entry.entity_id)
+        for entry in audit_entries
+    } == {
+        (admin_id, "create", str(area_package.json()["id"])),
+        (admin_id, "create", str(valid_homepage_price.json()["id"])),
+    }
+    update = client.patch(
+        f"/api/v1/admin/featured/packages/{area_package.json()['id']}",
+        json={"is_available": True},
+    )
+    assert update.status_code == 200
+    update_log = client.get("/api/v1/admin/action-logs").json()[0]
+    assert update_log["action"] == "update"
+    assert update_log["entity_type"] == "featured_package"
+    assert update_log["before_data"]["is_available"] is False
+    assert update_log["after_data"]["is_available"] is True
     assert valid_homepage_price.json()["is_available"] is True
 
 

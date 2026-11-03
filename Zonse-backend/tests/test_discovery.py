@@ -10,7 +10,13 @@ from sqlalchemy.pool import StaticPool
 import app.models
 from app.database import Base, get_db
 from app.main import app
+from app.models.identity import (
+    BusinessVerification,
+    Organization,
+    OrganizationMembership,
+)
 from app.models.property import Property, PropertyStatus
+from app.models.reference_data import DEFAULT_PROPERTY_CATEGORIES, PropertyCategory
 from app.models.user import User
 
 
@@ -25,6 +31,10 @@ def discovery_client(monkeypatch):
     test_session = sessionmaker(bind=engine, expire_on_commit=False)
 
     with test_session() as db:
+        db.add_all(
+            PropertyCategory(slug=slug, name=name)
+            for slug, name in DEFAULT_PROPERTY_CATEGORIES.items()
+        )
         db.add(
             User(
                 id=1,
@@ -140,7 +150,70 @@ def test_anonymous_visitor_can_retrieve_published_properties_without_credentials
 
     assert response.status_code == 200
     assert [listing["id"] for listing in response.json()] == [3, 2, 1]
+    assert all(listing["verification_labels"] == [] for listing in response.json())
     assert not client.cookies
+
+
+def test_public_verification_label_reflects_only_confirmed_account_email(
+    discovery_client,
+):
+    client, session_factory = discovery_client
+    _seed_published_listings(session_factory)
+
+    with session_factory() as db:
+        owner = db.get(User, 1)
+        owner.email_verified_at = datetime.now(timezone.utc)
+        owner.phone_number = "+265991000001"
+        owner.phone_verified_at = datetime.now(timezone.utc)
+        organization = Organization(
+            registered_business_name="Example Property Company",
+            business_type="property_company",
+            registration_number="REG-001",
+            country_of_registration="MW",
+            business_contact_email="company@example.test",
+            account_status="active",
+        )
+        db.add(organization)
+        db.flush()
+        db.add_all(
+            [
+                OrganizationMembership(
+                    organization_id=organization.id,
+                    user_id=owner.id,
+                    membership_role="authorized_representative",
+                ),
+                BusinessVerification(
+                    organization_id=organization.id,
+                    current_status="certified",
+                ),
+            ]
+        )
+        db.commit()
+
+    response = client.get("/api/v1/discovery/properties")
+
+    assert response.status_code == 200
+    listings = response.json()
+    assert all(
+        listing["verification_labels"] == ["Account email confirmed"]
+        for listing in listings
+    )
+    assert all(
+        label not in {"Phone confirmed", "Business certified", "Property verified"}
+        for listing in listings
+        for label in listing["verification_labels"]
+    )
+    assert all(
+        {
+            "email",
+            "email_verified_at",
+            "phone_number",
+            "phone_verified_at",
+            "private_storage_ref",
+            "verification_documents",
+        }.isdisjoint(listing)
+        for listing in listings
+    )
 
 
 def test_discovery_openapi_is_public_and_advertiser_list_route_is_unchanged(
@@ -166,6 +239,24 @@ def test_discovery_openapi_is_public_and_advertiser_list_route_is_unchanged(
         "show_contact_details",
         "cover_image_id",
     }.isdisjoint(response_fields)
+    assert "verification_labels" in response_fields
+    assert {
+        "email",
+        "email_verified_at",
+        "phone_number",
+        "phone_verified_at",
+        "private_storage_ref",
+        "verification_documents",
+    }.isdisjoint(response_fields)
+    advertiser_response = specification["components"]["schemas"]["PropertyResponse"][
+        "properties"
+    ]
+    assert {
+        "email_verified_at",
+        "phone_verified_at",
+        "private_storage_ref",
+        "verification_documents",
+    }.isdisjoint(advertiser_response)
     assert "/api/v1/properties" in specification["paths"]
     assert client.get("/api/v1/properties").status_code == 401
 
@@ -190,6 +281,20 @@ def test_discovery_excludes_every_non_published_status(discovery_client):
             if listing_status is PropertyStatus.PUBLISHED
         )
     ]
+
+
+def test_discovery_excludes_moderator_hidden_published_listings(discovery_client):
+    client, session_factory = discovery_client
+    _seed_published_listings(session_factory)
+    with session_factory() as db:
+        listing = db.get(Property, 2)
+        listing.moderator_hidden = True
+        db.commit()
+
+    response = client.get("/api/v1/discovery/properties")
+
+    assert response.status_code == 200
+    assert [listing["id"] for listing in response.json()] == [3, 1]
 
 
 @pytest.mark.parametrize(

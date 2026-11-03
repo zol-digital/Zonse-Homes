@@ -8,6 +8,7 @@ from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
+from app.api.v1.reference_data import require_active_category
 from app.models.featured import FeaturedPromotion
 from app.models.property import Property, PropertyStatus
 from app.models.user import User
@@ -108,8 +109,11 @@ def discover_properties(
 
     statement = (
         select(Property, area_promotion_expiry.label("featured_expires_at"))
-        .options(selectinload(Property.images))
-        .where(Property.status == PropertyStatus.PUBLISHED.value)
+        .options(selectinload(Property.images), selectinload(Property.owner))
+        .where(
+            Property.status == PropertyStatus.PUBLISHED.value,
+            Property.moderator_hidden.is_(False),
+        )
     )
     if search is not None:
         pattern = f"%{_escape_like(search)}%"
@@ -125,6 +129,7 @@ def discover_properties(
     if intent is not None:
         statement = statement.where(Property.intent == intent)
     if property_type is not None:
+        require_active_category(db, property_type)
         statement = statement.where(Property.property_type == property_type)
     if city is not None:
         statement = statement.where(
@@ -181,9 +186,10 @@ def discover_homepage_featured_properties(
             FeaturedPromotion,
             FeaturedPromotion.listing_id == Property.id,
         )
-        .options(selectinload(Property.images))
+        .options(selectinload(Property.images), selectinload(Property.owner))
         .where(
             Property.status == PropertyStatus.PUBLISHED.value,
+            Property.moderator_hidden.is_(False),
             FeaturedPromotion.placement_type == "homepage",
             FeaturedPromotion.status == "active",
             FeaturedPromotion.starts_at <= now,

@@ -178,6 +178,12 @@ class Property(Base):
         default=PropertyStatus.DRAFT.value,
         server_default=PropertyStatus.DRAFT.value,
     )
+    moderator_hidden = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True),
@@ -192,3 +198,9 @@ class Property(Base):
         foreign_keys="PropertyImage.property_id",
         cascade="all, delete-orphan",
     )
+
+    @property
+    def verification_labels(self) -> list[str]:
+        if self.owner is not None and self.owner.email_verified_at is not None:
+            return ["Account email confirmed"]
+        return []

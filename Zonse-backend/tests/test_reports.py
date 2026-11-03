@@ -19,6 +19,7 @@ from app.database import Base, get_db
 from app.models.identity import UserRole
 from app.models.moderation import ModerationActionLog
 from app.models.property import Property, PropertyStatus
+from app.models.reference_data import DEFAULT_PROPERTY_CATEGORIES, PropertyCategory
 from app.models.report import PropertyReport, ReportStatus
 from app.models.user import User
 from app.security.sessions import create_user_session
@@ -58,6 +59,12 @@ def report_environment(monkeypatch):
 
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    with session_factory() as db:
+        db.add_all(
+            PropertyCategory(slug=slug, name=name)
+            for slug, name in DEFAULT_PROPERTY_CATEGORIES.items()
+        )
+        db.commit()
 
     app = FastAPI()
     app.include_router(properties_router, prefix="/api/v1")
@@ -332,7 +339,15 @@ def test_authenticated_users_are_also_limited_by_shared_ip(report_environment):
     assert limited.status_code == 429
 
 
-def test_open_duplicate_is_rejected_without_using_an_additional_quota(report_environment):
+@pytest.mark.parametrize(
+    "existing_status",
+    [ReportStatus.NEW.value, ReportStatus.INVESTIGATING.value],
+    ids=["new", "under-review"],
+)
+def test_open_duplicate_is_rejected_without_using_an_additional_quota(
+    report_environment,
+    existing_status,
+):
     client, session_factory, _ = report_environment
     owner_id = _create_user(
         session_factory,
@@ -347,6 +362,14 @@ def test_open_duplicate_is_rejected_without_using_an_additional_quota(report_env
     _create_session_cookie(client, session_factory, reporter_id)
 
     assert _submit_report(client, listing_ids[0]).status_code == 202
+    with session_factory() as db:
+        db.execute(
+            update(PropertyReport)
+            .where(PropertyReport.listing_id == listing_ids[0])
+            .values(status=existing_status)
+        )
+        db.commit()
+
     duplicate = _submit_report(client, listing_ids[0])
     assert duplicate.status_code == 409
     assert _submit_report(client, listing_ids[1]).status_code == 202
@@ -521,6 +544,13 @@ def test_only_moderators_and_admins_can_review_reports(report_environment):
     with session_factory() as db:
         report_id = db.execute(select(PropertyReport.id)).scalar_one()
 
+    assert client.get("/api/v1/admin/reports").status_code == 401
+    assert client.post(
+        f"/api/v1/admin/reports/{report_id}/resolve",
+        headers={"Origin": "http://testserver"},
+        json={"status": "dismissed", "reason": "Not authenticated"},
+    ).status_code == 401
+
     _create_session_cookie(client, session_factory, user_id)
     assert client.get("/api/v1/admin/reports").status_code == 403
     denied_review = client.post(
@@ -533,6 +563,15 @@ def test_only_moderators_and_admins_can_review_reports(report_environment):
     authorized = client.get("/api/v1/admin/reports")
     assert authorized.status_code == 200
     assert len(authorized.json()) == 1
+    reviewed = client.post(
+        f"/api/v1/admin/reports/{report_id}/resolve",
+        json={
+            "status": "dismissed",
+            "reason": "The administrator reviewed this report.",
+        },
+    )
+    assert reviewed.status_code == 200
+    assert reviewed.json()["status"] == ReportStatus.DISMISSED.value
 
 
 def test_report_submission_requires_published_listing_and_valid_session_cookie(

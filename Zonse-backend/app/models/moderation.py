@@ -18,7 +18,9 @@ class ModerationActionLog(Base):
     __tablename__ = "moderation_action_logs"
     __table_args__ = (
         CheckConstraint(
-            "action IN ('approve', 'request_changes', 'reject', 'review_report')",
+            "action IN "
+            "('approve', 'request_changes', 'reject', 'remove', 'hide', "
+            "'restore', 'review_report')",
             name="ck_moderation_action_logs_action",
         ),
         CheckConstraint(

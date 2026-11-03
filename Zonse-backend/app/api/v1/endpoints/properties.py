@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from starlette.responses import Response
 
 from app.database import get_db
+from app.api.v1.reference_data import require_active_category
 from app.models.image import PropertyImage
 from app.models.property import (
     Property,
@@ -78,6 +79,7 @@ def create_listing(
     user: User = Depends(require_listing_manager),
     db: Session = Depends(get_db),
 ) -> Property:
+    require_active_category(db, payload.property_type)
     listing = Property(**payload.model_dump(), owner_id=user.id)
     return _save_listing(db, listing)
 
@@ -114,7 +116,10 @@ def update_listing(
 ) -> Property:
     _require_editable_listing(listing)
 
-    for field_name, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    if "property_type" in changes:
+        require_active_category(db, changes["property_type"])
+    for field_name, value in changes.items():
         setattr(listing, field_name, value)
     return _save_listing(db, listing)
 

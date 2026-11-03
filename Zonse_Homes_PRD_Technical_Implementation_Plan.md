@@ -1502,3 +1502,534 @@ tools. Prove that the marketplace can attract real properties, help
 users contact legitimate advertisers, keep listings fresh, and respond
 to fraud reports. Those are the foundations that make the later Zonse
 ecosystem valuable.
+
+
+
+---
+
+# 21. Account Centre and Account Settings Requirements Addendum
+
+## 21.1 Purpose and scope
+
+Zonse Homes MUST provide a comprehensive, first-class Account Centre within the public Zonse Homes web application. The Account Centre is the central place where authenticated users manage their personal information, account identity, business or agency information, privacy, security, preferences, verification information and account lifecycle.
+
+Account Settings MUST provide the configuration controls that determine how a user's account and Zonse Homes experience behave. It may be implemented as a dedicated area within the Account Centre, but its navigation and purpose must be clear to users.
+
+These capabilities apply to individual users, property seekers, individual property advertisers, landlords, registered businesses, real-estate agencies and other supported account types.
+
+This addendum supplements the existing requirements in Sections 3, 4, 5, 6, 8, 9, 11, 13, 14 and 15. Where the existing PRD mentions only basic profile editing, registration or account recovery, this addendum expands those requirements into a complete account-management experience.
+
+All requirements in this addendum form part of the planned Zonse Homes product. P0 and P1 priorities must be completed and verified before the planned product launch. P1 denotes implementation priority, not permission to omit a requirement from the completed product.
+
+The Account Centre is for ordinary Zonse Homes users. It MUST NOT be confused with or merged into the separate private administrative application. Administrative account management, moderation, platform configuration and privileged operational controls remain within the separately secured Admin application.
+
+## 21.2 Account Centre information architecture
+
+The Account Centre MUST be accessible to authenticated users through the signed-in account/profile navigation.
+
+It MUST provide a clear, responsive and accessible structure covering the following areas:
+
+1. Account overview.
+2. Personal profile and personal information.
+3. Account type and business/agency information, where applicable.
+4. Privacy and public-profile visibility.
+5. Contact preferences.
+6. Notifications and communication preferences.
+7. Security and active sessions.
+8. Verification and trust information.
+9. Language, regional and experience preferences.
+10. Listing and advertiser defaults, where applicable.
+11. Connected services and social accounts, when the relevant integrations are implemented.
+12. Personal-data access and account lifecycle controls.
+
+The interface MUST make it clear which settings affect:
+- Private information visible only to the account owner.
+- Information displayed on the user's public profile.
+- Information displayed on the user's property listings.
+- Information shared with other users through contact or enquiry features.
+- Information used for authentication, security, verification or legal obligations.
+
+The Account Centre MUST work on mobile and desktop screens and remain usable on lower-bandwidth connections.
+
+## 21.3 Personal profile and information management
+
+Users MUST be able to review and manage the personal information associated with their accounts.
+
+Requirements:
+
+- View and edit their display name and other supported personal profile details.
+- Add, change or remove a profile photograph.
+- Update their biography or profile description where supported.
+- Update their email address and phone number.
+- Review which personal details are private and which are publicly visible.
+- Review the account type associated with their account.
+- See when an update requires additional confirmation or verification.
+- Receive clear confirmation when an account-information change succeeds or fails.
+
+Changes to email addresses and phone numbers MUST follow an appropriate secure confirmation process before the new values are treated as confirmed. Sensitive changes MUST require appropriate reauthentication or additional verification.
+
+A user MUST NOT be able to change another user's profile or account information.
+
+The system MUST validate changes on the server, not rely solely on frontend validation.
+
+## 21.4 Individual, corporate and agency account management
+
+The Account Centre MUST support the account types defined in the PRD, including individual users and registered businesses or real-estate agencies.
+
+For supported business and agency profiles, the Account Centre SHOULD provide management of relevant information such as:
+
+- Registered business name.
+- Trading or display name.
+- Business or agency type.
+- Registration or identification information, where applicable.
+- Business description.
+- Business logo or profile image.
+- Business contact details.
+- Business address and operating locations.
+- Public-facing business information.
+- Relevant supporting information required by the separate verification process.
+
+The precise mandatory business fields and documentary requirements MUST follow applicable product and legal decisions for Malawi.
+
+Where the product supports business account permissions or team membership, those permissions MUST be managed through explicit role-based authorisation. An ordinary profile editor MUST NOT automatically receive privileged account-management rights.
+
+Changes to material business information may require renewed review. The system MUST preserve the distinction between editable business information and independently reviewed business certification.
+
+Changing a business name, logo, address or other profile field MUST NOT automatically grant, preserve or remove a certified-business badge. Certification changes MUST occur only through the authorised verification workflow.
+
+The system MUST preserve appropriate verification history and record material changes for audit purposes.
+
+## 21.5 Privacy and public visibility settings
+
+Users MUST have understandable controls over the personal and business information that Zonse Homes displays publicly.
+
+Supported visibility controls SHOULD cover:
+
+- Display name.
+- Profile photograph.
+- Biography or profile description.
+- Phone number.
+- Email address.
+- WhatsApp or other supported contact details.
+- Public business contact information.
+- Other supported profile attributes.
+
+Contact details MUST be private by default unless the user explicitly chooses to make particular details public.
+
+Users MUST be able to review the consequences of enabling public visibility before saving the setting.
+
+The platform MUST distinguish between:
+- Public profile visibility.
+- Contact visibility.
+- Listing-specific contact visibility.
+- Private information retained for account operation, security or verification.
+
+A setting that hides information from public visitors MUST NOT prevent the platform from processing information required for legitimate account, security, verification, moderation or legal purposes.
+
+The platform MUST never expose private verification documents, authentication credentials, session tokens or private account information through public profiles or listing APIs.
+
+Privacy settings MUST be enforced by backend authorisation and response filtering. Hiding an element in the frontend alone is insufficient.
+
+## 21.6 Contact preferences
+
+Users MUST be able to configure their preferred supported contact methods.
+
+These may include:
+- In-platform messaging or enquiries.
+- Phone calls.
+- WhatsApp.
+- Email.
+- Other contact channels introduced by the product.
+
+Users MUST be able to distinguish between making a contact method available and making the underlying contact detail publicly visible.
+
+The platform MUST respect applicable privacy settings and listing-level contact controls when presenting contact options to other users.
+
+Changes to contact preferences MUST NOT expose private contact information unexpectedly.
+
+## 21.7 Notification and communication settings
+
+The Account Centre MUST provide notification preferences for supported communication channels and notification categories.
+
+Notification categories SHOULD distinguish between:
+
+- Account and authentication security notifications.
+- Important account activity.
+- Property listing status and moderation updates.
+- Enquiries and messages.
+- Listing expiry, renewal and relevant listing activity.
+- Payment and transaction updates.
+- Verification requests and outcomes.
+- Product announcements.
+- Marketing and promotional communications.
+
+Where supported, notification channels may include email, SMS, push notifications and in-platform notifications.
+
+Users MUST be able to manage optional marketing and promotional communications separately from essential transactional, security and legally required communications.
+
+Essential service, security and legal notifications MUST NOT be disabled where their delivery is necessary for the secure or lawful operation of the service.
+
+The system MUST respect channel availability, consent and communication preferences. It MUST NOT display a notification option as available if the corresponding channel has not been implemented or enabled.
+
+## 21.8 Account security and active sessions
+
+The Account Centre MUST provide a dedicated security area.
+
+Users MUST be able to:
+
+- Change their password.
+- Access the supported account-recovery process.
+- Review relevant account-security information.
+- View active sessions or signed-in devices.
+- Revoke an individual session where supported.
+- Sign out of other active sessions.
+- Sign out of all sessions where supported.
+- Review important security-related account activity where available.
+
+Session information presented to users may include suitable metadata such as device or browser description and last-active time. Approximate location information MUST only be shown where it is reliably available and appropriate.
+
+Raw session tokens, access tokens, refresh tokens, password hashes and other authentication secrets MUST never be exposed in the Account Centre.
+
+Sensitive operations MUST require appropriate reauthentication or step-up verification.
+
+The backend MUST enforce session ownership and revocation permissions. A user MUST NOT be able to inspect or revoke another user's sessions.
+
+Password changes, account recovery, credential changes and session revocation MUST follow the security policy defined by the authentication implementation. The system MUST provide an appropriate way to invalidate compromised sessions.
+
+## 21.9 Verification and trust information
+
+The Account Centre MUST provide a clear view of the user's relevant verification and trust status.
+
+The interface MUST distinguish separate verification dimensions, including where applicable:
+
+- Email confirmation.
+- Phone confirmation.
+- Individual identity review.
+- Agent identity review.
+- Business or agency certification.
+- Property-document review.
+- Ownership or authority-to-market review.
+
+The platform MUST NOT use one generic verification status to imply that all these checks have been completed.
+
+Users SHOULD be able to see:
+- Which checks are complete.
+- Which checks are pending.
+- Which checks require additional information.
+- Which checks were unsuccessful.
+- What action is required next, where applicable.
+
+Where users can submit verification information, the interface MUST explain the purpose of the request and handle supporting evidence securely.
+
+Private evidence MUST remain accessible only to appropriately authorised verification and administrative personnel.
+
+Editing ordinary profile or business information MUST NOT automatically mark a verification check as complete.
+
+A certified-business badge MUST retain the disclaimer and limitations already defined in the PRD. It MUST NOT imply ownership of a listed property, verified property title, accuracy of every listing or authority to market every property.
+
+Verification decisions MUST remain separate from ordinary profile editing and MUST be recorded through the authorised verification workflow.
+
+## 21.10 Language, regional and experience preferences
+
+The Account Centre SHOULD support relevant user preferences, including where implemented:
+
+- Preferred interface language.
+- Country or region.
+- Timezone.
+- Currency display preference.
+- Regional number, date and display formats.
+- Accessibility or interface preferences where supported.
+
+These settings MUST be based on supported product capabilities. The implementation MUST NOT offer unsupported languages, currencies or regional functionality as though they are already available.
+
+The design MUST support Malawi as the initial market while allowing additional regions and locales to be introduced without redesigning the account-management architecture.
+
+## 21.11 Listing and advertiser defaults
+
+For users who publish property listings or advertisements, the Account Centre SHOULD provide appropriate reusable defaults where supported by the listing workflow.
+
+Examples include:
+
+- Preferred contact methods.
+- Default contact visibility.
+- Preferred listing location.
+- Other reusable listing preferences that are explicitly supported by the product.
+
+A default MUST NOT silently override a user's explicit choice when creating or editing an individual listing.
+
+Listing-specific settings MUST remain distinguishable from general account settings.
+
+The platform MUST enforce the privacy and authorisation rules defined for each listing independently of the user's default preferences.
+
+## 21.12 Connected services and social accounts
+
+The Account Centre MUST provide a dedicated area for connected third-party services when the corresponding integrations are implemented.
+
+This requirement supports the planned ability for listing owners and advertisers to distribute their Zonse Homes listings to designated platforms, including Facebook, Instagram and WhatsApp.
+
+The design MUST distinguish:
+
+- Native device or browser share-sheet functionality.
+- Manual sharing through a platform.
+- Link and image sharing.
+- Automated or authorised publishing through a connected third-party account.
+
+Where third-party account connections are supported, users MUST be able to understand:
+- Which service is connected.
+- Which permissions have been granted.
+- What actions Zonse Homes is authorised to perform.
+- How to disconnect or revoke the connection.
+
+Third-party authorisation MUST use the supported secure authorisation mechanism. Tokens and credentials MUST be protected and MUST NOT be exposed to the frontend or ordinary account-profile responses.
+
+The system MUST NOT publish content to a user's connected account without the required user authorisation and applicable platform permissions.
+
+Disconnecting a service MUST revoke or invalidate the applicable connection and prevent further authorised publishing through that connection.
+
+The social publishing capability MUST preserve the previously specified product behaviour: listing distribution should use the relevant user-published property imagery and direct viewers to the corresponding Zonse Homes listing page where supported.
+
+Native sharing and manual sharing MUST remain available as appropriate fallbacks when direct platform publishing is unavailable or not authorised.
+
+## 21.13 Personal-data access and account activity
+
+Users MUST have an appropriate way to request or access a copy of their personal account data, subject to security, privacy and applicable legal restrictions.
+
+The platform SHOULD provide access to relevant account information and account-related activity where appropriate.
+
+The implementation MUST define:
+- Which personal data can be accessed directly.
+- Which data requires a formal request.
+- How the user's identity is confirmed before disclosure.
+- How the data is delivered securely.
+- How third-party information and legally restricted records are protected.
+
+The PRD does not prescribe a particular export file format. That decision may be made during detailed implementation planning.
+
+Account activity presented to users MUST be limited to information they are authorised to see. Internal moderation notes, private verification evidence, privileged administrative records and security secrets MUST NOT be exposed.
+
+## 21.14 Account deactivation and deletion
+
+The Account Centre MUST distinguish temporary account deactivation from permanent account deletion requests.
+
+### Deactivation
+
+Where supported, users SHOULD be able to request temporary deactivation.
+
+The product MUST define the effect of deactivation on:
+- Sign-in and account access.
+- Public profile visibility.
+- Active listings.
+- Contact and enquiry functionality.
+- Existing transactions or obligations.
+- Restoration or reactivation.
+
+Deactivation MUST NOT silently destroy data that is required to restore the account or meet legal obligations.
+
+### Deletion
+
+Users MUST be able to initiate an account-deletion request through an appropriately secured workflow.
+
+The deletion process MUST:
+- Clearly explain the consequences.
+- Require suitable confirmation.
+- Protect against accidental or unauthorised deletion.
+- Apply the platform's documented retention and legal-obligation rules.
+- Handle personal data deletion or anonymisation appropriately.
+- Preserve records that must legally or operationally be retained, with appropriate access restrictions and minimisation.
+- Address relevant listings, messages, payments, verification records and other associated data according to the retention policy.
+- Communicate the request's status and outcome where appropriate.
+
+The platform MUST NOT promise that all records will be erased where applicable law, financial obligations, fraud prevention, security or audit requirements require limited retention.
+
+Deletion and deactivation MUST be auditable and MUST be enforced by the backend.
+
+## 21.15 Data model and backend capabilities
+
+The existing `users`, `profiles`, `verification_checks` and `audit_logs` entities remain the foundation for account management.
+
+The implementation MUST inspect and reuse existing identity, authentication, profile, session and token models before introducing additional tables. It MUST avoid duplicate representations of data or duplicate session-management mechanisms.
+
+The complete data model MUST support the requirements in this addendum. Depending on the existing implementation, supporting entities or fields may include:
+
+- User account preferences.
+- Privacy and visibility preferences.
+- Notification preferences and channel consent.
+- Account-security and session metadata, reusing the existing session implementation.
+- Account lifecycle and deletion requests.
+- Business or agency profile information.
+- Social-account connection metadata and protected authorisation credentials.
+- Relevant account activity and audit records.
+
+These are logical data requirements, not instructions to create every item as a separate database table. The final schema MUST follow the established SQLAlchemy and Alembic architecture and existing data ownership boundaries.
+
+The implementation MUST preserve referential integrity, appropriate indexes, server-side validation and access controls.
+
+Sensitive values MUST be encrypted or otherwise protected as appropriate. Secrets, credentials and private evidence MUST NOT be stored in plaintext or exposed through ordinary API responses.
+
+## 21.16 API requirements
+
+The Account Centre MUST be supported by authenticated, versioned backend APIs.
+
+The existing `/api/v1/me` and profile endpoints SHOULD be extended where appropriate rather than introducing duplicate account APIs.
+
+The complete API design MUST provide capabilities for:
+
+- Reading the authenticated user's account overview.
+- Updating permitted personal profile information.
+- Updating and confirming email and phone changes.
+- Managing supported business or agency profile information.
+- Reading and updating privacy and visibility preferences.
+- Managing contact preferences.
+- Reading and updating notification preferences.
+- Changing passwords through the secure authentication workflow.
+- Listing and revoking the authenticated user's sessions.
+- Reading verification status and submitting supported verification requests.
+- Managing supported language and regional preferences.
+- Managing supported listing defaults.
+- Connecting and disconnecting authorised third-party services.
+- Requesting and retrieving permitted personal-data exports.
+- Initiating and reviewing account deactivation or deletion requests.
+
+The exact route structure and request/response schemas MUST be reconciled with the existing backend API architecture. The route examples and capabilities in this addendum describe required behaviour; they do not assert that these endpoints already exist.
+
+All account-management endpoints MUST:
+- Require authentication where appropriate.
+- Enforce ownership and role permissions server-side.
+- Validate and constrain submitted fields.
+- Apply rate limits to sensitive operations.
+- Use appropriate confirmation and reauthentication requirements.
+- Return only data the requesting user is authorised to access.
+- Avoid leaking internal security or verification information.
+
+## 21.17 Security, privacy and audit requirements
+
+The Account Centre MUST comply with the security and privacy principles already defined in Section 11.
+
+Additional requirements:
+
+- Sensitive account changes MUST require appropriate reauthentication or step-up verification.
+- Email and phone changes MUST be confirmed before the new values are considered verified.
+- Password and session operations MUST use the established authentication and session-security implementation.
+- Session revocation MUST take effect on the backend.
+- Account-management operations MUST enforce ownership and prevent insecure direct object references.
+- Privacy preferences MUST be enforced by API responses and backend business logic.
+- Connected-service authorisation credentials MUST be protected and access restricted.
+- Private verification evidence MUST remain private.
+- Account deletion and deactivation MUST follow defined lifecycle and retention policies.
+- Security-sensitive and material account changes MUST be audit logged.
+- Audit logs MUST be append-only or otherwise protected against unauthorised alteration.
+- Audit metadata MUST be minimised and MUST NOT contain passwords, raw tokens, private evidence or unnecessary personal information.
+- Users MUST NOT be able to alter verification outcomes, audit records or privileged account attributes through ordinary account settings.
+
+## 21.18 Screen inventory and navigation additions
+
+The existing screen inventory in Section 6 MUST be extended to include:
+
+1. Account Centre overview.
+2. Personal profile and information editor.
+3. Business or agency profile editor.
+4. Privacy and visibility settings.
+5. Contact preferences.
+6. Notification preferences.
+7. Security settings.
+8. Active sessions and device management.
+9. Verification and trust status.
+10. Language and regional preferences.
+11. Listing and advertiser defaults.
+12. Connected services and social accounts.
+13. Personal-data access.
+14. Account deactivation and deletion workflow.
+
+These areas may be organised into a coherent Account Centre rather than implemented as fourteen unrelated pages. The final navigation MUST be understandable, responsive and accessible.
+
+The signed-in navigation MUST provide a clear route to the Account Centre. Users MUST be able to return to their listings and other relevant account activities without losing their place unnecessarily.
+
+## 21.19 Acceptance criteria
+
+The Account Centre and Account Settings requirements MUST NOT be considered complete until the following behaviours are implemented and verified:
+
+- An authenticated user can access their Account Centre.
+- A user can update permitted personal profile information.
+- Email and phone changes follow secure confirmation.
+- Individual and business/agency account information is handled according to account permissions.
+- Public and private profile information is correctly separated.
+- Contact details remain private by default unless the user explicitly enables public visibility.
+- Notification preferences work according to supported channels and essential-notification rules.
+- Users can securely change passwords.
+- Users can inspect and revoke their own sessions according to supported capabilities.
+- Users cannot inspect or modify another user's account or sessions.
+- Verification information is displayed accurately and separately by verification type.
+- Editing profile information cannot independently grant or remove business certification or property verification.
+- Supported language, regional and listing preferences are saved and respected.
+- Connected services can be reviewed and disconnected securely when implemented.
+- Personal-data access requests follow the defined authorisation and disclosure process.
+- Account deactivation and deletion requests follow the defined lifecycle and retention policy.
+- Private evidence, credentials, session tokens and restricted administrative information are never exposed through public or ordinary account APIs.
+- Account-management actions are appropriately validated and audited.
+- The Account Centre works on supported mobile and desktop layouts.
+- The separate Admin application remains independent.
+
+## 21.20 Testing requirements
+
+The testing strategy in Section 14 MUST be extended to cover Account Centre functionality.
+
+Tests MUST include:
+
+### Functional tests
+- Account overview retrieval.
+- Personal profile updates.
+- Business and agency profile updates.
+- Privacy and visibility preferences.
+- Contact preferences.
+- Notification preferences.
+- Regional and language preferences.
+- Listing defaults.
+- Verification status display.
+- Data-access requests.
+- Deactivation and deletion workflows.
+
+### Authentication and security tests
+- Unauthenticated access is rejected where required.
+- Users cannot access another user's account data.
+- Users cannot access or revoke another user's sessions.
+- Sensitive changes enforce the required reauthentication or confirmation.
+- Email and phone changes cannot bypass confirmation.
+- Session revocation invalidates the relevant session.
+- Password changes follow the established credential-security policy.
+- Connected-service credentials and tokens are not exposed.
+- Private verification evidence is not exposed.
+- Account deletion and lifecycle actions enforce ownership and confirmation.
+
+### Privacy and authorisation tests
+- Private contact information is not returned publicly.
+- Public profile visibility follows the user's saved preferences.
+- Listing-specific contact visibility is respected.
+- Business certification cannot be granted through profile editing.
+- Verification status cannot be modified by ordinary account settings.
+- Audit records cannot be modified by ordinary users.
+- Essential notifications remain enabled where required.
+
+### Integration and end-to-end tests
+- A user can complete the relevant Account Centre journeys from the web interface through the backend.
+- Account changes persist and are reflected consistently across the application.
+- Session and authentication changes are reflected in subsequent requests.
+- Account lifecycle workflows behave correctly with associated listings and records.
+- Connected-service workflows respect authorisation and revocation when implemented.
+
+The test suite MUST include negative and permission-boundary cases, not just successful user journeys.
+
+## 21.21 Implementation and completion requirements
+
+The Account Centre and Account Settings MUST be included in the relevant account and profile implementation scope in Section 15.
+
+The implementation MUST build on the existing identity and authentication foundations rather than replacing or duplicating them.
+
+The work MUST be coordinated with the relevant profile, verification, listing, messaging, notification, payment, social integration and privacy capabilities.
+
+Social account connections MUST be implemented in coordination with the social distribution and publishing functionality. They MUST not be represented as complete merely because a placeholder settings screen exists.
+
+The Account Centre MUST be treated as a real product capability with functioning backend enforcement, persistence, frontend controls, security and tests. A visual-only implementation is insufficient.
+
+All applicable P0 and P1 Account Centre requirements MUST be completed and verified as part of the full planned Zonse Homes system before launch.
+
+The existing project architecture, technology decisions, milestone structure, security boundaries and deployment timing remain unchanged by this addendum. Implementation planning MUST continue to use the authoritative development milestones and existing project requirements.

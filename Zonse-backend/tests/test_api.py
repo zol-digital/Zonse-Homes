@@ -32,6 +32,13 @@ def test_application_import_registers_single_versioned_health_router():
     }.issubset(app.openapi()["paths"]["/api/v1/properties"])
     assert "/api/v1/properties/{property_id}/submit" in app.openapi()["paths"]
     assert "/api/v1/properties/{property_id}/archive" in app.openapi()["paths"]
+    assert "/api/v1/reference/categories" in app.openapi()["paths"]
+    assert "/api/v1/reference/locations" in app.openapi()["paths"]
+    assert "/api/v1/admin/reference/categories" in app.openapi()["paths"]
+    assert "/api/v1/admin/reference/locations" in app.openapi()["paths"]
+    assert "/api/v1/admin/accounts/{user_id}/suspend" in app.openapi()["paths"]
+    assert "/api/v1/admin/accounts/{user_id}/restore" in app.openapi()["paths"]
+    assert "/api/v1/admin/action-logs" in app.openapi()["paths"]
 
 
 def test_property_create_schema_validates_required_fields_and_decimal_money():
@@ -102,7 +109,7 @@ def test_property_schemas_reject_unknown_listing_values_and_status_updates():
             title="House",
             price="1000",
             city="Lilongwe",
-            property_type="castle",
+            property_type="Not-a-valid-category",
         )
 
     with pytest.raises(ValueError):

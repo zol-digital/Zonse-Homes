@@ -16,6 +16,7 @@ from app.database import Base, get_db
 from app.exception_handlers import register_exception_handlers
 from app.models.identity import UserRole
 from app.models.property import Property
+from app.models.reference_data import DEFAULT_PROPERTY_CATEGORIES, PropertyCategory
 from app.models.session import UserSession
 from app.models.user import User
 from app.security.authorization import (
@@ -57,6 +58,12 @@ def auth_environment(monkeypatch):
     Base.metadata.create_all(engine)
     assert app.models.PropertyImage.__table__ in Base.metadata.tables.values()
     session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    with session_factory() as db:
+        db.add_all(
+            PropertyCategory(slug=slug, name=name)
+            for slug, name in DEFAULT_PROPERTY_CATEGORIES.items()
+        )
+        db.commit()
 
     test_app = FastAPI()
     register_exception_handlers(test_app)

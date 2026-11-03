@@ -8,7 +8,15 @@ PropertyTitle = Annotated[str, StringConstraints(strip_whitespace=True, min_leng
 PropertyPrice = Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=2)]
 PropertyCurrency = Annotated[str, StringConstraints(min_length=3, max_length=3)]
 PropertyCity = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-PropertyType = Literal["house", "apartment", "flat", "plot", "land", "commercial"]
+PropertyType = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=50,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+    ),
+]
 PropertyIntent = Literal["sale", "rent"]
 RentalPeriod = Literal["day", "week", "month", "year"]
 AreaUnit = Literal["sqm", "sqft"]
@@ -50,6 +58,9 @@ class PublicPropertyResponse(BaseModel):
 
     id: int
     title: str
+    verification_labels: list[Literal["Account email confirmed"]] = Field(
+        default_factory=list
+    )
     description: str | None
     price: Decimal
     currency: str

@@ -1,21 +1,23 @@
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from pydantic import BaseModel, ConfigDict, StringConstraints
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.admin_audit import AdminActionLog
 from app.models.featured import (
     FeaturedPlacementPackage,
     FeaturedPromotion,
     FeaturedPromotionOrder,
     FeaturedPromotionSettings,
 )
+from app.models.identity import UserRole
 from app.models.moderation import ModerationActionLog
 from app.models.property import Property, PropertyStatus, validate_property_status_transition
 from app.models.report import PropertyReport, ReportStatus
@@ -38,6 +40,8 @@ from app.schemas.report import (
 )
 from app.security.authorization import require_admin, require_moderator
 from app.security.csrf import validate_csrf_origin
+from app.security.sessions import revoke_all_user_sessions
+from app.services.admin_audit import record_admin_action
 
 router = APIRouter(
     prefix="/admin",
@@ -110,6 +114,167 @@ class ModerationActionLogResponse(BaseModel):
     created_at: datetime
 
 
+class ModerationBacklogSummary(BaseModel):
+    pending_listings: int
+    open_reports: int
+    total: int
+
+
+class AdminDashboardResponse(BaseModel):
+    listing_counts_by_status: dict[str, int]
+    report_counts_by_status: dict[str, int]
+    moderation_backlog: ModerationBacklogSummary
+
+
+class AdminAccountResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: str
+    full_name: str | None
+    account_status: str
+    is_active: bool
+    updated_at: datetime
+
+
+class AdminActionLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    actor_id: int
+    action: str
+    entity_type: str
+    entity_id: str
+    before_data: dict[str, Any] | None
+    after_data: dict[str, Any] | None
+    created_at: datetime
+
+
+def _get_account_for_update(db: Session, user_id: int) -> User:
+    account = db.execute(
+        select(User).where(User.id == user_id).with_for_update()
+    ).scalar_one_or_none()
+    if account is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Account not found",
+        )
+    return account
+
+
+@router.post(
+    "/accounts/{user_id}/suspend",
+    response_model=AdminAccountResponse,
+)
+def suspend_account(
+    user_id: Annotated[int, Path(ge=1)],
+    actor: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> User:
+    active_admins = list(
+        db.execute(
+            select(User)
+            .join(UserRole, UserRole.user_id == User.id)
+            .where(
+                UserRole.role == "admin",
+                User.account_status == "active",
+                User.is_active.is_(True),
+            )
+            .order_by(User.id)
+            .with_for_update()
+        ).scalars()
+    )
+    account = _get_account_for_update(db, user_id)
+    if account.id == actor.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Administrators cannot suspend their own account",
+        )
+    if account.account_status != "active" or not account.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only active accounts can be suspended",
+        )
+    if account in active_admins and len(active_admins) <= 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The last active administrator cannot be suspended",
+        )
+
+    previous_values = {
+        "account_status": account.account_status,
+        "is_active": account.is_active,
+    }
+    account.account_status = "suspended"
+    revoke_all_user_sessions(db, account.id, commit=False)
+    record_admin_action(
+        db,
+        actor_id=actor.id,
+        action="suspend",
+        entity_type="user",
+        entity_id=account.id,
+        before_data=previous_values,
+        after_data={
+            "account_status": account.account_status,
+            "is_active": account.is_active,
+        },
+    )
+    try:
+        db.commit()
+        db.refresh(account)
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    return account
+
+
+@router.post(
+    "/accounts/{user_id}/restore",
+    response_model=AdminAccountResponse,
+)
+def restore_account(
+    user_id: Annotated[int, Path(ge=1)],
+    actor: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> User:
+    account = _get_account_for_update(db, user_id)
+    if account.account_status != "suspended":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only suspended accounts can be restored",
+        )
+    if not account.is_active or account.email_verified_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Account cannot be restored until its existing requirements are met",
+        )
+
+    previous_values = {
+        "account_status": account.account_status,
+        "is_active": account.is_active,
+    }
+    account.account_status = "active"
+    record_admin_action(
+        db,
+        actor_id=actor.id,
+        action="restore",
+        entity_type="user",
+        entity_id=account.id,
+        before_data=previous_values,
+        after_data={
+            "account_status": account.account_status,
+            "is_active": account.is_active,
+        },
+    )
+    try:
+        db.commit()
+        db.refresh(account)
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    return account
+
+
 def _get_listing_or_404(db: Session, property_id: int) -> Property:
     statement = (
         select(Property)
@@ -144,6 +309,8 @@ def _apply_listing_action(
 
     previous_status = listing.status
     listing.status = target_status.value
+    if target_status is PropertyStatus.REMOVED:
+        listing.moderator_hidden = False
     entry = ModerationActionLog(
         listing_id=listing.id,
         actor_id=actor.id,
@@ -161,6 +328,73 @@ def _apply_listing_action(
         db.rollback()
         raise
     return listing
+
+
+def _record_visibility_action(
+    db: Session,
+    listing: Property,
+    actor: User,
+    *,
+    action: str,
+    reason: str,
+    moderator_notes: str | None = None,
+) -> Property:
+    entry = ModerationActionLog(
+        listing_id=listing.id,
+        actor_id=actor.id,
+        action=action,
+        reason=reason,
+        previous_status=listing.status,
+        new_status=listing.status,
+        moderator_notes=moderator_notes,
+    )
+    db.add(entry)
+    try:
+        db.commit()
+        db.refresh(listing)
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    return listing
+
+
+@router.get("/dashboard", response_model=AdminDashboardResponse)
+def get_admin_dashboard(
+    _user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AdminDashboardResponse:
+    listing_counts = {listing_status.value: 0 for listing_status in PropertyStatus}
+    for listing_status, count in db.execute(
+        select(Property.status, func.count(Property.id)).group_by(Property.status)
+    ):
+        listing_counts[listing_status] = count
+
+    report_counts = {report_status.value: 0 for report_status in ReportStatus}
+    for report_status, count in db.execute(
+        select(PropertyReport.status, func.count(PropertyReport.id)).group_by(
+            PropertyReport.status
+        )
+    ):
+        report_counts[report_status] = count
+
+    pending_listings = listing_counts[PropertyStatus.PENDING_REVIEW.value]
+    open_reports = sum(
+        report_counts[report_status.value]
+        for report_status in (
+            ReportStatus.NEW,
+            ReportStatus.INVESTIGATING,
+            ReportStatus.ESCALATED,
+        )
+    )
+    return AdminDashboardResponse(
+        listing_counts_by_status=listing_counts,
+        report_counts_by_status=report_counts,
+        moderation_backlog=ModerationBacklogSummary(
+            pending_listings=pending_listings,
+            open_reports=open_reports,
+            total=pending_listings + open_reports,
+        ),
+    )
 
 
 @router.get("/moderation/listings", response_model=list[PropertyResponse])
@@ -190,6 +424,25 @@ def list_audit_logs(
         ModerationActionLog.created_at.desc(),
         ModerationActionLog.id.desc(),
     ).limit(limit).offset(offset)
+    return list(db.execute(statement).scalars())
+
+
+@router.get(
+    "/action-logs",
+    response_model=list[AdminActionLogResponse],
+)
+def list_admin_action_logs(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    _user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[AdminActionLog]:
+    statement = (
+        select(AdminActionLog)
+        .order_by(AdminActionLog.created_at.desc(), AdminActionLog.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
     return list(db.execute(statement).scalars())
 
 
@@ -339,6 +592,85 @@ def reject_listing(
     )
 
 
+@router.post("/listings/{property_id}/remove", response_model=PropertyResponse)
+def remove_listing(
+    property_id: int,
+    payload: ModerationActionRequest,
+    user: User = Depends(require_moderator),
+    db: Session = Depends(get_db),
+) -> Property:
+    listing = _get_listing_or_404(db, property_id)
+    return _apply_listing_action(
+        db,
+        listing,
+        user,
+        "remove",
+        PropertyStatus.REMOVED,
+        payload.reason,
+        payload.moderator_notes,
+    )
+
+
+@router.post("/listings/{property_id}/hide", response_model=PropertyResponse)
+def hide_listing(
+    property_id: int,
+    payload: ModerationActionRequest,
+    user: User = Depends(require_moderator),
+    db: Session = Depends(get_db),
+) -> Property:
+    listing = _get_listing_or_404(db, property_id)
+    if listing.moderator_hidden:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Listing is already hidden by moderation",
+        )
+    if listing.status != PropertyStatus.PUBLISHED.value:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only published listings can be hidden by moderation",
+        )
+
+    listing.moderator_hidden = True
+    return _record_visibility_action(
+        db,
+        listing,
+        user,
+        action="hide",
+        reason=payload.reason,
+        moderator_notes=payload.moderator_notes,
+    )
+
+
+@router.post("/listings/{property_id}/restore", response_model=PropertyResponse)
+def restore_listing(
+    property_id: int,
+    payload: ModerationActionRequest,
+    user: User = Depends(require_moderator),
+    db: Session = Depends(get_db),
+) -> Property:
+    listing = _get_listing_or_404(db, property_id)
+    if not listing.moderator_hidden:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Listing is not hidden by moderation",
+        )
+    if listing.status == PropertyStatus.REMOVED.value:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Permanently removed listings cannot be restored",
+        )
+
+    listing.moderator_hidden = False
+    return _record_visibility_action(
+        db,
+        listing,
+        user,
+        action="restore",
+        reason=payload.reason,
+        moderator_notes=payload.moderator_notes,
+    )
+
+
 @router.get(
     "/featured/packages",
     response_model=list[FeaturedPackageResponse],
@@ -361,7 +693,7 @@ def list_featured_packages(
 )
 def create_featured_package(
     payload: FeaturedPackageCreate,
-    _user: User = Depends(require_admin),
+    user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> FeaturedPlacementPackage:
     _validate_featured_package_pricing(
@@ -374,6 +706,22 @@ def create_featured_package(
     package = FeaturedPlacementPackage(**payload.model_dump())
     try:
         db.add(package)
+        db.flush()
+        record_admin_action(
+            db,
+            actor_id=user.id,
+            action="create",
+            entity_type="featured_package",
+            entity_id=package.id,
+            before_data=None,
+            after_data={
+                "placement_type": package.placement_type,
+                "duration": package.duration,
+                "price": package.price,
+                "currency": package.currency,
+                "is_available": package.is_available,
+            },
+        )
         db.commit()
         db.refresh(package)
     except IntegrityError as exc:
@@ -403,7 +751,7 @@ def create_featured_package(
 def update_featured_package(
     package_id: int,
     payload: FeaturedPackageUpdate,
-    _user: User = Depends(require_admin),
+    user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> FeaturedPlacementPackage:
     package = db.execute(
@@ -416,6 +764,13 @@ def update_featured_package(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Featured package not found",
         )
+    previous_values = {
+        "placement_type": package.placement_type,
+        "duration": package.duration,
+        "price": package.price,
+        "currency": package.currency,
+        "is_available": package.is_available,
+    }
     changes = payload.model_dump(exclude_unset=True)
     _validate_featured_package_pricing(
         db,
@@ -427,6 +782,21 @@ def update_featured_package(
     )
     for field_name, value in changes.items():
         setattr(package, field_name, value)
+    record_admin_action(
+        db,
+        actor_id=user.id,
+        action="update",
+        entity_type="featured_package",
+        entity_id=package.id,
+        before_data=previous_values,
+        after_data={
+            "placement_type": package.placement_type,
+            "duration": package.duration,
+            "price": package.price,
+            "currency": package.currency,
+            "is_available": package.is_available,
+        },
+    )
     try:
         db.commit()
         db.refresh(package)
@@ -459,7 +829,7 @@ def get_featured_settings(
 )
 def update_featured_settings(
     payload: FeaturedSettingsUpdate,
-    _user: User = Depends(require_admin),
+    user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> FeaturedPromotionSettings:
     featured_settings = db.execute(
@@ -472,7 +842,21 @@ def update_featured_settings(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Featured placement settings are not initialized",
         )
+    previous_values = {
+        "homepage_inventory_limit": featured_settings.homepage_inventory_limit,
+    }
     featured_settings.homepage_inventory_limit = payload.homepage_inventory_limit
+    record_admin_action(
+        db,
+        actor_id=user.id,
+        action="update",
+        entity_type="featured_settings",
+        entity_id=featured_settings.id,
+        before_data=previous_values,
+        after_data={
+            "homepage_inventory_limit": featured_settings.homepage_inventory_limit,
+        },
+    )
     try:
         db.commit()
         db.refresh(featured_settings)
@@ -551,6 +935,21 @@ def cancel_featured_promotion(
     promotion.cancelled_at = now
     promotion.cancelled_by_user_id = user.id
     promotion.cancellation_reason = payload.reason
+    record_admin_action(
+        db,
+        actor_id=user.id,
+        action="cancel",
+        entity_type="featured_promotion",
+        entity_id=promotion.id,
+        before_data={
+            "status": "active",
+            "cancellation_reason": None,
+        },
+        after_data={
+            "status": promotion.status,
+            "cancellation_reason": promotion.cancellation_reason,
+        },
+    )
     try:
         db.commit()
         db.refresh(promotion)
