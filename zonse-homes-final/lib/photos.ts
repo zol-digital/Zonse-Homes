@@ -1,4 +1,4 @@
-export const MAX_PHOTOS = 6;
+export const MAX_PHOTOS = 10;
 
 export const FEATURES: Record<string, string[]> = {
   Essentials: ["Wi-Fi", "Parking", "Water tank", "Borehole", "Backup generator", "Solar power", "Security guard", "Gated compound"],
