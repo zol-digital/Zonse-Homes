@@ -12,8 +12,8 @@ const SUPPORT = {
 
 export default function SupportPage() {
   const { me } = useStore();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [name, setName] = useState(me?.name ?? "");
+  const [email, setEmail] = useState(me?.email ?? "");
   const [subject, setSubject] = useState("Listing help");
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<"" | "sent" | "error">("");
@@ -58,11 +58,11 @@ export default function SupportPage() {
         <div className="row2">
           <div className="field">
             <label>Your name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} defaultValue={me?.name} />
+            <input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="field">
             <label>Email</label>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} defaultValue={me?.email} />
+            <input value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
         </div>
         <div className="field">
